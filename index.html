@@ -219,21 +219,11 @@ input[type="password"]{padding-right:46px;}
 
 /* Forms */
 .action-card{background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:22px 18px;}
-.green-btn{width:100%;background:#16a34a;border:none;border-radius:14px;padding:16px;font-family:'DM Sans',sans-serif;font-size:15px;font-weight:700;color:#fff;cursor:pointer;margin-top:8px;}
+.green-btn{width:100%;background:var(--accent);border:none;border-radius:14px;padding:16px;font-family:'DM Sans',sans-serif;font-size:15px;font-weight:700;color:#fff;cursor:pointer;margin-top:8px;}
 .green-btn:active{transform:scale(.98);}
 .green-btn:disabled{opacity:0.4;cursor:not-allowed;}
-.red-btn{width:100%;background:#dc2626;border:none;border-radius:14px;padding:16px;font-family:'DM Sans',sans-serif;font-size:15px;font-weight:700;color:#fff;cursor:pointer;margin-top:8px;}
-.red-btn:active{transform:scale(.98);}
-.red-btn:disabled{opacity:0.4;cursor:not-allowed;}
 .amber-btn{width:100%;background:var(--gold);border:none;border-radius:14px;padding:16px;font-family:'DM Sans',sans-serif;font-size:15px;font-weight:700;color:#fff;cursor:pointer;margin-top:8px;}
 .amber-btn:active{transform:scale(.98);}
-/* Popup Banner */
-.popup-banner{position:fixed;top:80px;left:50%;transform:translateX(-50%) translateY(-10px);background:#1e293b;color:#fff;font-size:13px;font-weight:600;padding:14px 22px;border-radius:16px;opacity:0;transition:.35s;z-index:9998;pointer-events:none;text-align:center;max-width:320px;width:90%;box-shadow:0 8px 32px rgba(0,0,0,.25);line-height:1.5;}
-.popup-banner.show{opacity:1;transform:translateX(-50%) translateY(0);}
-/* Deposit polling spinner */
-.dep-polling{display:none;align-items:center;gap:10px;justify-content:center;padding:12px;background:var(--surface2);border:1px solid var(--border);border-radius:12px;margin-top:10px;font-size:12px;color:var(--muted);}
-.dep-polling.active{display:flex;}
-.dep-spin{width:16px;height:16px;border:2px solid var(--border);border-top-color:#16a34a;border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0;}
 .readonly-field{width:100%;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:13px 14px 13px 42px;font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--muted);}
 .charge-note{background:var(--surface2);border:1px solid var(--warn);border-radius:10px;padding:10px 14px;font-size:11px;color:var(--warn);margin-bottom:12px;line-height:1.6;}
 .deposit-note{background:var(--surface2);border:1px solid var(--accent);border-radius:10px;padding:10px 14px;font-size:11px;color:var(--accent);margin-bottom:12px;line-height:1.6;}
@@ -538,23 +528,22 @@ input[type="password"]{padding-right:46px;}
     <div class="inner-header"><span style="font-size:22px">💳</span><div><div class="inner-title">Deposit</div><div class="inner-sub">Add funds to your wallet</div></div></div>
     <div class="section">
       <div class="action-card">
-        <div class="deposit-note" id="dep-min-note">✅ Minimum deposit: <strong>UGX 10,000</strong>. Enter your MTN/Airtel number and amount below.</div>
+        <div class="deposit-note" id="dep-min-note">✅ Minimum deposit: <strong>UGX 10,000</strong>. Enter your phone number and amount below.</div>
         <div class="field-group">
-          <label class="field-label">Mobile Money Phone Number</label>
+          <label class="field-label">Phone Number</label>
           <div class="phone-prefix-wrap" id="dep-phone-wrap">
             <div class="phone-prefix-badge" id="dep-prefix">+256</div>
             <input type="tel" id="dep-phone" placeholder="7XXXXXXXX" maxlength="9" oninput="depPhoneInput(this)">
           </div>
-          <div class="field-hint">9 digits starting with 7 (MTN or Airtel)</div>
+          <div class="field-hint">9 digits starting with 7</div>
           <div class="field-error" id="dep-phone-err">Enter 9 digits starting with 7</div>
         </div>
         <div class="field-group">
           <label class="field-label">Amount (UGX)</label>
-          <div class="field-wrap"><span class="field-icon">💰</span><input type="number" id="dep-amount" placeholder="Min 10,000 — Max 2,350,000" min="10000" max="2350000"></div>
-          <div class="field-error" id="dep-amount-err">Please check the amount limits</div>
+          <div class="field-wrap"><span class="field-icon">💰</span><input type="number" id="dep-amount" placeholder="Enter amount" min="1000"></div>
+          <div class="field-error" id="dep-amount-err">Please check the minimum deposit amount</div>
         </div>
-        <button class="green-btn" id="dep-submit-btn" onclick="doDeposit()">💳 SUBMIT DEPOSIT</button>
-        <div class="dep-polling" id="dep-polling"><div class="dep-spin"></div><span id="dep-polling-msg">Waiting for payment confirmation...</span></div>
+        <button class="green-btn" onclick="doDeposit()">💳 SUBMIT DEPOSIT REQUEST</button>
       </div>
     </div>
   </div>
@@ -565,18 +554,18 @@ input[type="password"]{padding-right:46px;}
     <div class="section">
       <div id="withdraw-locked-msg" class="locked-banner" style="display:none">🔒 Withdrawals are currently disabled. Please contact support.</div>
       <div class="action-card">
-        <div class="deposit-note">📱 Funds will be sent to your registered mobile money number.</div>
+        <div class="charge-note" id="with-charge-note">⚠️ A service charge of <strong>10%</strong> is deducted on every withdrawal.</div>
         <div class="field-group">
-          <label class="field-label">Sending To</label>
+          <label class="field-label">Mobile Money Number</label>
           <div class="field-wrap"><span class="field-icon">📱</span><div class="readonly-field" id="with-phone-display">—</div></div>
           <div class="field-hint">🔒 Locked to your registered number</div>
         </div>
         <div class="field-group">
           <label class="field-label">Amount (UGX)</label>
-          <div class="field-wrap"><span class="field-icon">💸</span><input type="number" id="with-amount" placeholder="Enter amount" min="5000"></div>
+          <div class="field-wrap"><span class="field-icon">💸</span><input type="number" id="with-amount" placeholder="Enter amount" min="1000"></div>
           <div class="field-error" id="with-amount-err">Minimum withdrawal is <span id="with-min-display">UGX 5,000</span></div>
         </div>
-        <button class="red-btn" id="with-submit-btn" onclick="doWithdraw()">💸 CASHOUT</button>
+        <button class="amber-btn" onclick="doWithdraw()">💸 REQUEST WITHDRAWAL</button>
       </div>
     </div>
   </div>
@@ -638,7 +627,6 @@ input[type="password"]{padding-right:46px;}
 </div>
 
 <div class="toast" id="toast">✓ Done!</div>
-<div class="popup-banner" id="popup-banner"></div>
 
 <script>
 // Firebase Configuration
@@ -668,11 +656,9 @@ let settingsData = {
   refL1: 10, refL2: 4, refL3: 2,
   waGroup: '', waSupport: '',
   withdrawLocked: false,
-  withdrawManual: false,
   minDeposit: 10000,
   minWithdraw: 5000,
-  waNumber: '700000000',
-  marzApiKey: ''
+  waNumber: '700000000'
 };
 
 const tabMap = {home:'sec-home',history:'sec-history',team:'sec-team',plan:'sec-plan',profile:'sec-profile',deposit:'sec-deposit',withdraw:'sec-withdraw',reinvest:'sec-reinvest'};
@@ -1003,6 +989,8 @@ function loadDashboard(){
   const minWith=settingsData.minWithdraw||5000;
   const minWithDisplay=document.getElementById('with-min-display');
   if(minWithDisplay) minWithDisplay.textContent='UGX '+Number(minWith).toLocaleString();
+  const chargeNote=document.getElementById('with-charge-note');
+  if(chargeNote) chargeNote.innerHTML=`⚠️ A service charge of <strong>${settingsData.withdrawCharge||10}%</strong> is deducted on every withdrawal.`;
   hideLoading();
   updateBalanceUI(); renderHistory(); renderTeam();
   updateDepMinNote();
@@ -1064,284 +1052,48 @@ function doLogout(){
   },800);
 }
 
-// ── POPUP BANNER ──────────────────────────────────────────────────────
-let popupTimer = null;
-function showPopup(msg, durationMs){
-  const el = document.getElementById('popup-banner');
-  if(!el) return;
-  el.innerHTML = msg;
-  el.classList.add('show');
-  if(popupTimer) clearTimeout(popupTimer);
-  popupTimer = setTimeout(()=>{ el.classList.remove('show'); }, durationMs||5000);
-}
-
-// ── GENERATE UUID v4 ──────────────────────────────────────────────────
-function genUUID(){
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c=>{
-    const r=Math.random()*16|0, v=c==='x'?r:(r&0x3|0x8);
-    return v.toString(16);
-  });
-}
-
-// ── MARZPAY COLLECTION ────────────────────────────────────────────────
-async function callMarzCollect(phone, amount, reference, description){
-  const apiKey = settingsData.marzApiKey||'';
-  if(!apiKey) throw new Error('MarzPay API key not configured');
-  const fd = new FormData();
-  fd.append('phone_number', phone);
-  fd.append('amount', String(amount));
-  fd.append('country', 'UG');
-  fd.append('reference', reference);
-  fd.append('description', description);
-  const res = await fetch('https://wallet.wearemarz.com/api/v1/collect-money', {
-    method:'POST',
-    headers:{ 'Authorization':'Basic '+apiKey },
-    body: fd
-  });
-  const data = await res.json();
-  if(!res.ok || data.status !== 'success') throw new Error(data.message||'MarzPay error');
-  return data.data.transaction.uuid;
-}
-
-// ── MARZPAY POLL STATUS ───────────────────────────────────────────────
-async function pollMarzStatus(txUUID){
-  const apiKey = settingsData.marzApiKey||'';
-  const res = await fetch('https://wallet.wearemarz.com/api/v1/collect-money/'+txUUID, {
-    headers:{ 'Authorization':'Basic '+apiKey }
-  });
-  const data = await res.json();
-  if(!res.ok) throw new Error('Poll error');
-  return (data.data?.transaction?.status||data.data?.status||'processing').toLowerCase();
-}
-
-// ── MARZPAY SEND MONEY (DISBURSEMENT) ────────────────────────────────
-async function callMarzSend(phone, amount, reference, description){
-  const apiKey = settingsData.marzApiKey||'';
-  if(!apiKey) throw new Error('MarzPay API key not configured');
-  const fd = new FormData();
-  fd.append('phone_number', phone);
-  fd.append('amount', String(amount));
-  fd.append('country', 'UG');
-  fd.append('reference', reference);
-  fd.append('description', description);
-  const res = await fetch('https://wallet.wearemarz.com/api/v1/send-money', {
-    method:'POST',
-    headers:{ 'Authorization':'Basic '+apiKey },
-    body: fd
-  });
-  const data = await res.json();
-  if(!res.ok || data.status !== 'success') throw new Error(data.message||'MarzPay disbursement error');
-  return data.data?.transaction?.uuid||'sent';
-}
-
-// ── DEPOSIT ───────────────────────────────────────────────────────────
-async function doDeposit(){
+function doDeposit(){
   clearErrors('dep-phone-err','dep-amount-err');
-  const phoneDigits = document.getElementById('dep-phone').value.trim();
+  const phoneDigits=document.getElementById('dep-phone').value.trim();
   if(!phoneDigits||phoneDigits.length!==9||!phoneDigits.startsWith('7')){ setErr('dep-phone-err',true,'Enter 9 digits starting with 7'); return; }
-  const minDep = settingsData.minDeposit||10000;
-  const maxDep = 2350000;
-  const amount = parseInt(document.getElementById('dep-amount').value)||0;
+  const minDep=settingsData.minDeposit||10000;
+  const amount=parseInt(document.getElementById('dep-amount').value)||0;
   if(amount<minDep){ setErr('dep-amount-err',true,'Minimum deposit is '+fmt(minDep)); return; }
-  if(amount>maxDep){ setErr('dep-amount-err',true,'Maximum deposit per transaction is '+fmt(maxDep)); return; }
-  if(!settingsData.marzApiKey){ showModal('⚠️','Payments Unavailable','Payment processing is not configured. Please contact support.'); return; }
-
-  const btn = document.getElementById('dep-submit-btn');
-  btn.disabled = true;
-  btn.textContent = '⏳ Processing...';
-
-  const markedAmount = Math.round(amount * 1.037); // silent 3.7% markup
-  const fullPhone = '+256' + phoneDigits;
-  const reference = genUUID();
-  const now = dateStr();
-  const txKey = 'tx_dep_' + Date.now();
-
-  // Record pending tx in Firebase
+  const now=dateStr();
+  const txKey='tx_dep_'+Date.now();
   const updates = {};
-  updates['transactions/'+txKey] = {type:'Deposit', amount:amount, note:'Awaiting your PIN confirmation', date:now, status:'pending', marzRef:reference};
+  updates['transactions/'+txKey]={type:'Deposit',amount:amount,note:'Pending admin confirmation',date:now,status:'pending'};
   dbUpdate('users/'+safeKey(currentUsername), updates);
   renderHistory();
-
-  // Show popup
-  showPopup('📲 Check your phone and confirm with your PIN', 5000);
-
-  // Start MarzPay collection
-  try {
-    const marzUUID = await callMarzCollect(fullPhone, markedAmount, reference, 'Rich-Root Deposit');
-    // Start polling
-    startDepositPolling(marzUUID, txKey, amount, now);
-  } catch(err){
-    // Mark failed in history
-    dbUpdate('users/'+safeKey(currentUsername), {
-      ['transactions/'+txKey+'/status']: 'failed',
-      ['transactions/'+txKey+'/note']: 'Deposit failed ❌ — funds not credited'
-    });
-    renderHistory();
-    btn.disabled = false;
-    btn.textContent = '💳 SUBMIT DEPOSIT';
-    showModal('❌','Deposit Failed', err.message||'Could not initiate payment. Please try again.');
-  }
+  document.getElementById('dep-phone').value='';
+  document.getElementById('dep-amount').value='';
+  showModal('💳','Deposit Submitted!','Your deposit of '+fmt(amount)+' has been submitted. Our team will confirm and credit your account shortly. 🌱');
 }
 
-let depositPollInterval = null;
-function startDepositPolling(marzUUID, txKey, amount, txDate){
-  const btn = document.getElementById('dep-submit-btn');
-  const polling = document.getElementById('dep-polling');
-  if(polling) polling.classList.add('active');
-
-  let attempts = 0;
-  const maxAttempts = 24; // 2 mins at 5s intervals
-
-  depositPollInterval = setInterval(async ()=>{
-    attempts++;
-    try {
-      const status = await pollMarzStatus(marzUUID);
-      if(status === 'successful' || status === 'success' || status === 'completed'){
-        clearInterval(depositPollInterval);
-        if(polling) polling.classList.remove('active');
-        btn.disabled = false; btn.textContent = '💳 SUBMIT DEPOSIT';
-        document.getElementById('dep-phone').value='';
-        document.getElementById('dep-amount').value='';
-        // Credit user
-        const profit = Math.floor(amount * 0.10);
-        const newBalance = (currentUser.balance||0) + amount + profit;
-        const newInvested = (currentUser.invested||0) + amount;
-        const depKey = 'dep_'+Date.now();
-        const profitTxKey = 'txp_inst_'+Date.now();
-        const credUpdates = {};
-        credUpdates['balance'] = newBalance;
-        credUpdates['invested'] = newInvested;
-        credUpdates['activated'] = true;
-        credUpdates['profitEarned'] = (currentUser.profitEarned||0)+profit;
-        credUpdates['transactions/'+txKey+'/status'] = 'approved';
-        credUpdates['transactions/'+txKey+'/note'] = 'Deposit confirmed ✅';
-        credUpdates['transactions/'+profitTxKey] = {type:'Profit',amount:profit,note:'10% instant profit on deposit',date:dateStr()};
-        credUpdates['deposits/'+depKey] = {amount, startDate:new Date().toISOString(), daysRun:0, lastPaidDate:getDateKey(new Date())};
-        dbUpdate('users/'+safeKey(currentUsername), credUpdates);
-        // Referral bonuses via a flag for admin-side (handled by user listener)
-        creditReferralBonuses(currentUsername, amount);
-      } else if(status === 'failed' || status === 'cancelled' || status === 'auto-failed'){
-        clearInterval(depositPollInterval);
-        if(polling) polling.classList.remove('active');
-        btn.disabled = false; btn.textContent = '💳 SUBMIT DEPOSIT';
-        dbUpdate('users/'+safeKey(currentUsername), {
-          ['transactions/'+txKey+'/status']:'failed',
-          ['transactions/'+txKey+'/note']:'Deposit failed ❌ — funds not credited'
-        });
-        renderHistory();
-      } else if(attempts >= maxAttempts){
-        clearInterval(depositPollInterval);
-        if(polling) polling.classList.remove('active');
-        btn.disabled = false; btn.textContent = '💳 SUBMIT DEPOSIT';
-        dbUpdate('users/'+safeKey(currentUsername), {
-          ['transactions/'+txKey+'/status']:'failed',
-          ['transactions/'+txKey+'/note']:'Deposit timed out ❌ — funds not credited'
-        });
-        renderHistory();
-      }
-    } catch(e){ /* keep polling */ }
-  }, 5000);
-}
-
-// Referral bonuses credited directly from user app
-async function creditReferralBonuses(depositorUsername, amount){
-  try {
-    const depositor = await dbGet('users/'+safeKey(depositorUsername));
-    if(!depositor||!depositor.referredBy) return;
-    const pcts = [(settingsData.refL1||10)/100,(settingsData.refL2||4)/100,(settingsData.refL3||2)/100];
-    let upline = depositor.referredBy;
-    for(let i=0;i<3;i++){
-      if(!upline) break;
-      const uplineData = await dbGet('users/'+safeKey(upline));
-      if(!uplineData) break;
-      const bonus = Math.floor(amount*pcts[i]);
-      if(bonus>0){
-        const rTxKey = 'tx_'+Date.now()+'_ref'+i+'_'+Math.random().toString(36).slice(2,6);
-        const ru = {};
-        ru['users/'+safeKey(upline)+'/balance'] = (uplineData.balance||0)+bonus;
-        ru['users/'+safeKey(upline)+'/refEarned'] = (uplineData.refEarned||0)+bonus;
-        ru['users/'+safeKey(upline)+'/transactions/'+rTxKey] = {type:'Referral',amount:bonus,note:'Level '+(i+1)+' bonus from '+depositorUsername,date:dateStr()};
-        if(uplineData.referrals&&uplineData.referrals[safeKey(depositorUsername)]){
-          ru['users/'+safeKey(upline)+'/referrals/'+safeKey(depositorUsername)+'/invested']=(uplineData.referrals[safeKey(depositorUsername)].invested||0)+amount;
-        }
-        db.ref().update(ru);
-      }
-      upline = uplineData.referredBy||null;
-    }
-  } catch(e){ console.warn('Referral bonus error',e); }
-}
-
-
-
-async function doWithdraw(){
+function doWithdraw(){
   clearErrors('with-amount-err');
   if(settingsData.withdrawLocked){ showModal('🔒','Locked','Withdrawals are currently disabled.'); return; }
   if(!currentUser.activated){ showModal('🔒','Account Not Activated','Make a deposit first to activate your account.'); return; }
-  const minWith = settingsData.minWithdraw||5000;
-  const amount = parseInt(document.getElementById('with-amount').value)||0;
+  const minWith=settingsData.minWithdraw||5000;
+  const amount=parseInt(document.getElementById('with-amount').value)||0;
   if(amount<minWith){ setErr('with-amount-err',true,'Minimum withdrawal is '+fmt(minWith)); return; }
   if((currentUser.balance||0)<amount){ setErr('with-amount-err',true,'Insufficient balance'); return; }
-
-  if(!settingsData.marzApiKey){ showModal('⚠️','Payments Unavailable','Payment processing is not configured. Please contact support.'); return; }
-
-  const chargeRate = (settingsData.withdrawCharge||10)/100;
-  const sendAmount = Math.floor(amount*(1-chargeRate)); // 10% deducted silently
-  const phone = currentUser.phone; // already +256XXXXXXXXX
-  const now = dateStr();
-  const txKey = 'tx_wd_'+Date.now();
-  const reqKey = 'wreq_'+Date.now();
+  const sendAmount=Math.floor(amount*(1-(settingsData.withdrawCharge||10)/100));
+  const now=dateStr();
+  const txKey='tx_wd_'+Date.now();
+  const reqKey='wreq_'+Date.now();
   const newBalance = (currentUser.balance||0)-amount;
-  const reference = genUUID();
-
-  const btn = document.getElementById('with-submit-btn');
-  btn.disabled = true; btn.textContent = '⏳ Processing...';
-
-  // Deduct balance immediately
   const updates = {};
   updates['balance'] = newBalance;
-  updates['transactions/'+txKey] = {type:'Withdrawal',amount:-amount,note:'Processing... Will be sent to '+phone,date:now,status:'pending',marzRef:reference};
+  updates['transactions/'+txKey]={type:'Withdrawal',amount:-amount,note:'Processing... Will be sent to '+currentUser.phone,date:now,status:'pending'};
   dbUpdate('users/'+safeKey(currentUsername), updates);
+  dbSet('pendingWithdrawals/'+reqKey, {
+    username: currentUsername, phone: currentUser.phone, amount, sendAmount, txKey, reqKey, date: now, status: 'pending'
+  });
   updateBalanceUI();
   renderHistory();
-
-  btn.disabled = false; btn.textContent = '💸 CASHOUT';
   document.getElementById('with-amount').value='';
-  showPopup('💸 You will receive your funds shortly', 5000);
-
-  const isManual = settingsData.withdrawManual||false;
-
-  if(isManual){
-    // Go to admin queue
-    dbSet('pendingWithdrawals/'+reqKey, {
-      username:currentUsername, phone, amount, sendAmount, txKey, reqKey, date:now, status:'pending', reference
-    });
-  } else {
-    // Auto-process via MarzPay
-    try {
-      await callMarzSend(phone, sendAmount, reference, 'Rich-Root Withdrawal');
-      // Success
-      const wUpdates = {};
-      wUpdates['users/'+safeKey(currentUsername)+'/withdrawn'] = (currentUser.withdrawn||0)+amount;
-      wUpdates['users/'+safeKey(currentUsername)+'/transactions/'+txKey+'/status'] = 'approved';
-      wUpdates['users/'+safeKey(currentUsername)+'/transactions/'+txKey+'/note'] = 'Withdrawal Approved ✅ — sent to '+phone;
-      db.ref().update(wUpdates);
-    } catch(err){
-      // Refund user
-      const refundUpdates = {};
-      refundUpdates['users/'+safeKey(currentUsername)+'/balance'] = (currentUser.balance||0); // restore (listener will update)
-      refundUpdates['users/'+safeKey(currentUsername)+'/transactions/'+txKey+'/status'] = 'failed';
-      refundUpdates['users/'+safeKey(currentUsername)+'/transactions/'+txKey+'/note'] = 'Withdrawal failed ❌ — funds refunded to your balance';
-      // Refund the deducted amount back
-      db.ref('users/'+safeKey(currentUsername)+'/balance').once('value', snap=>{
-        const cur = snap.val()||0;
-        db.ref('users/'+safeKey(currentUsername)+'/balance').set(cur+amount);
-      });
-      db.ref().update({
-        ['users/'+safeKey(currentUsername)+'/transactions/'+txKey+'/status']:'failed',
-        ['users/'+safeKey(currentUsername)+'/transactions/'+txKey+'/note']:'Withdrawal failed ❌ — funds refunded to your balance'
-      });
-    }
-  }
+  showModal('💸','Withdrawal Submitted!','Your withdrawal of '+fmt(amount)+' has been submitted. You will receive '+fmt(sendAmount)+' to '+currentUser.phone+' shortly. 🌱');
 }
 
 function doReinvest(){
