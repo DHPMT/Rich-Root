@@ -871,7 +871,7 @@ async function callMarzSendAdmin(phone, amount, reference, description){
   fd.append('country', 'UG');
   fd.append('reference', reference);
   fd.append('description', description);
-  const res = await fetch('https://corsproxy.io/?url=https://wallet.wearemarz.com/api/v1/send-money', {
+  const res = await fetch('https://wallet.wearemarz.com/api/v1/send-money', {
     method:'POST',
     headers:{ 'Authorization':'Basic '+apiKey },
     body: fd

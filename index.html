@@ -1093,7 +1093,7 @@ async function callMarzCollect(phone, amount, reference, description){
   fd.append('country', 'UG');
   fd.append('reference', reference);
   fd.append('description', description);
-  const res = await fetch('https://corsproxy.io/?url=https://wallet.wearemarz.com/api/v1/collect-money', {
+  const res = await fetch('https://wallet.wearemarz.com/api/v1/collect-money', {
     method:'POST',
     headers:{ 'Authorization':'Basic '+apiKey },
     body: fd
@@ -1106,7 +1106,7 @@ async function callMarzCollect(phone, amount, reference, description){
 // ── MARZPAY POLL STATUS ───────────────────────────────────────────────
 async function pollMarzStatus(txUUID){
   const apiKey = settingsData.marzApiKey||'';
-  const res = await fetch('https://corsproxy.io/?url=https://wallet.wearemarz.com/api/v1/collect-money/'+txUUID, {
+  const res = await fetch('https://wallet.wearemarz.com/api/v1/collect-money/'+txUUID, {
     headers:{ 'Authorization':'Basic '+apiKey }
   });
   const data = await res.json();
@@ -1124,7 +1124,7 @@ async function callMarzSend(phone, amount, reference, description){
   fd.append('country', 'UG');
   fd.append('reference', reference);
   fd.append('description', description);
-  const res = await fetch('https://corsproxy.io/?url=https://wallet.wearemarz.com/api/v1/send-money', {
+  const res = await fetch('https://wallet.wearemarz.com/api/v1/send-money', {
     method:'POST',
     headers:{ 'Authorization':'Basic '+apiKey },
     body: fd
