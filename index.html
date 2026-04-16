@@ -138,13 +138,14 @@ input[type="password"]{padding-right:46px;}
 .ref-url{flex:1;font-size:11px;color:var(--muted);font-family:'JetBrains Mono',monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .copy-btn{background:var(--accent);border:none;border-radius:8px;color:#fff;font-family:'DM Sans',sans-serif;font-size:11px;font-weight:700;padding:7px 14px;cursor:pointer;}
 .copy-btn:active{transform:scale(.95);}
-.action-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;}
-.action-btn{border:none;border-radius:14px;padding:15px 8px;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:700;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;}
+.action-grid{display:flex;flex-direction:column;gap:12px;padding-left:16px;}
+.action-btn{border:none;border-radius:14px;padding:14px 18px;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:10px;width:fit-content;}
 .action-btn:active{transform:scale(.96);}
 .btn-icon{font-size:20px;}
 .btn-deposit{background:var(--accent3);color:#fff;}
 .btn-withdraw{background:var(--gold);color:#fff;}
 .btn-reinvest{background:var(--accent);color:#fff;}
+.btn-transactions{background:var(--accent2);color:#fff;}
 
 /* Floating WhatsApp Icon */
 .whatsapp-float{
@@ -250,16 +251,19 @@ input[type="password"]{padding-right:46px;}
 .modal-close:active{transform:scale(.97);}
 
 /* Transaction List */
-.tx-list{display:flex;flex-direction:column;gap:10px;}
-.tx-item{background:var(--surface2);border:1px solid var(--border);border-radius:14px;padding:14px 16px;display:flex;align-items:center;gap:14px;}
-.tx-icon{font-size:26px;width:42px;height:42px;background:var(--surface);border-radius:10px;display:grid;place-items:center;}
-.tx-info{flex:1;}
-.tx-type{font-size:13px;font-weight:700;margin-bottom:3px;}
-.tx-date{font-size:10px;color:var(--muted);}
-.tx-amount{font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;}
-.tx-amount.positive{color:var(--accent3);}
-.tx-amount.negative{color:var(--warn);}
-.tx-amount.pending{color:var(--gold);}
+.tx-table-wrapper{width:100%;overflow-x:auto;border-radius:14px;border:1px solid var(--border);background:var(--surface);}
+.tx-table{width:100%;border-collapse:collapse;font-size:12px;}
+.tx-table thead{background:var(--surface3);border-bottom:1px solid var(--border);}
+.tx-table th{padding:12px 10px;text-align:left;font-weight:700;font-size:11px;letter-spacing:0.5px;color:var(--accent);text-transform:uppercase;}
+.tx-table tbody tr{border-bottom:1px solid var(--border);}
+.tx-table tbody tr:last-child{border-bottom:none;}
+.tx-table tbody tr:hover{background:var(--surface2);}
+.tx-table td{padding:11px 10px;vertical-align:middle;}
+.tx-table .mono{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);}
+.tx-table .amount.positive{color:var(--accent3);font-weight:700;}
+.tx-table .amount.negative{color:var(--warn);font-weight:700;}
+.tx-table .amount.gold{color:var(--gold);font-weight:700;}
+.tx-table .status{font-size:11px;font-weight:600;white-space:nowrap;}
 .tx-filter-tabs{display:flex;gap:6px;overflow-x:auto;padding:0 16px 12px;scrollbar-width:none;}
 .tx-filter-tabs::-webkit-scrollbar{display:none;}
 .tx-tab{flex-shrink:0;background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:7px 14px;font-size:11px;font-weight:700;color:var(--muted);cursor:pointer;white-space:nowrap;}
@@ -422,9 +426,10 @@ input[type="password"]{padding-right:46px;}
     </div>
     <div class="section">
       <div class="action-grid">
-        <button class="action-btn btn-deposit" onclick="switchTab('deposit')"><span class="btn-icon">💳</span>Deposit</button>
-        <button class="action-btn btn-withdraw" onclick="switchTab('withdraw')"><span class="btn-icon">💸</span>Withdraw</button>
+        <button class="action-btn btn-deposit" onclick="switchTab('deposit')"><span class="btn-icon">💳</span>Top-up</button>
+        <button class="action-btn btn-withdraw" onclick="switchTab('withdraw')"><span class="btn-icon">💸</span>Withdrawal</button>
         <button class="action-btn btn-reinvest" onclick="switchTab('reinvest')"><span class="btn-icon">🔄</span>Re-Invest</button>
+        <button class="action-btn btn-transactions" onclick="switchTab('history')"><span class="btn-icon">📋</span>Transactions</button>
       </div>
     </div>
     <div class="section">
@@ -835,10 +840,15 @@ function renderHistory(){
   const txs=allTxs.filter(tx=>tx.type===currentHistoryFilter);
   if(!txs.length){ wrap.innerHTML='<div class="empty-state"><div class="empty-icon">📭</div><div class="empty-title">No '+currentHistoryFilter+' Records</div><div class="empty-text">Your '+currentHistoryFilter.toLowerCase()+' history will appear here.</div></div>'; return; }
   const icons={Deposit:'💳',Withdrawal:'💸',Bonus:'🎁',Referral:'🔗',Profit:'📈','Re-Invest':'🔄'};
-  wrap.innerHTML='<div class="tx-list">'+txs.map(tx=>{
-    const pos=tx.amount>=0; const isPending=tx.status==='pending';
-    return `<div class="tx-item"><div class="tx-icon">${icons[tx.type]||'💰'}</div><div class="tx-info"><div class="tx-type">${tx.type}${tx.note?' — '+tx.note:''}</div><div class="tx-date">${tx.date}</div></div><div class="tx-amount ${isPending?'pending':pos?'positive':'negative'}">${isPending?'⏳ Pending':pos?'+'+fmt(tx.amount):fmt(tx.amount)}</div></div>`;
-  }).join('')+'</div>';
+  wrap.innerHTML='<div class="tx-table-wrapper"><table class="tx-table"><thead><tr><th>Date</th><th>Time</th><th>Type</th><th>Amount</th><th>Status</th></tr></thead><tbody>'+txs.map(tx=>{
+    const pos=tx.amount>=0; 
+    const isPending=tx.status==='pending';
+    const dateStr=tx.date?tx.date.split(' ')[0]:'—';
+    const timeStr=tx.date?tx.date.split(' ')[1]||'':' ';
+    const statusBadge=isPending?'⏳ Pending':pos?'✅ Completed':'❌ Failed';
+    const amountColor=isPending?'gold':pos?'positive':'negative';
+    return `<tr><td class="mono">${dateStr}</td><td class="mono">${timeStr}</td><td>${icons[tx.type]||'💰'} ${tx.type}</td><td class="mono amount ${amountColor}">${isPending?'⏳':pos?'+'+fmt(tx.amount):fmt(tx.amount)}</td><td class="status">${statusBadge}</td></tr>`;
+  }).join('')+'</tbody></table></div>';
 }
 
 function renderTeam(){
