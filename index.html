@@ -733,7 +733,7 @@ let currentUsername = null;
 let userListener = null;
 let settingsData = {
   withdrawCharge: 10,
-  refL1: 10, refL2: 4, refL3: 2,
+  refL1: 10, refL2: 3, refL3: 1,
   waGroup: '', waSupport: '',
   withdrawLocked: false,
   withdrawManual: false,
@@ -917,11 +917,13 @@ function renderHistory(){
   wrap.innerHTML='<div class="tx-table-wrapper"><table class="tx-table"><thead><tr><th>Date</th><th>Time</th><th>Type</th><th>Amount</th><th>Status</th></tr></thead><tbody>'+txs.map(tx=>{
     const pos=tx.amount>=0; 
     const isPending=tx.status==='pending';
+    const isFailed=tx.status==='failed';
+    const isCompleted=tx.status==='completed';
     const dateStr=tx.date?tx.date.split(' ')[0]:'—';
     const timeStr=tx.date?tx.date.split(' ')[1]||'':' ';
-    const statusBadge=isPending?'⏳ Pending':pos?'✅ Completed':'❌ Failed';
-    const amountColor=isPending?'gold':pos?'positive':'negative';
-    return `<tr><td class="mono">${dateStr}</td><td class="mono">${timeStr}</td><td>${icons[tx.type]||'💰'} ${tx.type}</td><td class="mono amount ${amountColor}">${isPending?'⏳':pos?'+'+fmt(tx.amount):fmt(tx.amount)}</td><td class="status">${statusBadge}</td></tr>`;
+    const statusBadge=isPending?'⏳ Pending':isFailed?'❌ Failed':'✅ Completed';
+    const amountColor=isPending?'gold':isFailed?'negative':'positive';
+    return `<tr><td class="mono">${dateStr}</td><td class="mono">${timeStr}</td><td>${icons[tx.type]||'💰'} ${tx.type}</td><td class="mono amount ${amountColor}">${isPending?'⏳':isFailed?'':pos?'+'+fmt(tx.amount):fmt(tx.amount)}</td><td class="status">${statusBadge}</td></tr>`;
   }).join('')+'</tbody></table></div>';
 }
 
@@ -1312,7 +1314,7 @@ function startDepositPolling(marzUUID, txKey, amount, txDate){
         credUpdates['invested'] = newInvested;
         credUpdates['profitEarned'] = newProfitEarned;
         credUpdates['activated'] = true;
-        credUpdates['transactions/'+txKey+'/status'] = 'approved';
+        credUpdates['transactions/'+txKey+'/status'] = 'completed';
         credUpdates['transactions/'+txKey+'/note'] = 'Deposit confirmed ✅';
         credUpdates['transactions/'+profitTxKey] = {type:'Profit',amount:profit,note:'10% instant profit on deposit',date:dateStr()};
         credUpdates['deposits/'+depKey] = {amount, startDate:new Date().toISOString(), daysRun:0, lastPaidDate:getDateKey(new Date())};
@@ -1347,7 +1349,7 @@ async function creditReferralBonuses(depositorUsername, amount){
   try {
     const depositor = await dbGet('users/'+safeKey(depositorUsername));
     if(!depositor||!depositor.referredBy) return;
-    const pcts = [(settingsData.refL1||10)/100,(settingsData.refL2||4)/100,(settingsData.refL3||2)/100];
+    const pcts = [(settingsData.refL1||10)/100,(settingsData.refL2||3)/100,(settingsData.refL3||1)/100];
     let upline = depositor.referredBy;
     for(let i=0;i<3;i++){
       if(!upline) break;
