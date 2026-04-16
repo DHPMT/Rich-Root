@@ -1066,15 +1066,6 @@ function loadDashboard(){
   document.getElementById('ref-url').textContent=refLink;
   document.getElementById('ref-url2').textContent=refLink;
   
-  // Old profile elements
-  document.getElementById('profile-name').textContent=u.username;
-  document.getElementById('profile-user').textContent=u.username;
-  document.getElementById('profile-phone').textContent=u.phone;
-  document.getElementById('profile-country').textContent=ctry;
-  document.getElementById('profile-ctry').textContent=ctry;
-  document.getElementById('profile-since').textContent=u.joinedDate||'2025';
-  document.getElementById('profile-status').textContent=u.activated?'🟢 Active Investor':'⏳ Pending Deposit';
-  
   // New redesigned profile elements
   const avatarInitials=u.username.substring(0,2).toUpperCase();
   document.getElementById('profile-avatar-lg-main').textContent=avatarInitials;
