@@ -880,13 +880,24 @@ function openWaGroup(){ if(settingsData.waGroup) window.open(settingsData.waGrou
 
 function updateBalanceUI(){
   if(!currentUser) return;
-  const profits = (currentUser.refEarned || 0) + (currentUser.profitEarned || 0);
-  document.getElementById('stat-invested').textContent=fmt(currentUser.invested);
-  document.getElementById('stat-balance').textContent=fmt(currentUser.balance);
-  document.getElementById('stat-withdrawn').textContent=fmt(currentUser.withdrawn);
-  document.getElementById('stat-profits').textContent=fmt(profits);
-  document.getElementById('stat-total-earned').textContent=fmt((currentUser.refEarned||0) + (currentUser.profitEarned||0) + (currentUser.withdrawn||0));
-  const el=document.getElementById('reinvest-balance-display'); if(el)el.textContent=fmt(currentUser.balance);
+  const invested = currentUser.invested || 0;
+  const profitEarned = currentUser.profitEarned || 0;
+  const refEarned = currentUser.refEarned || 0;
+  const withdrawn = currentUser.withdrawn || 0;
+  
+  // Available Balance = Profits + Referral - Withdrawn (NOT including investment)
+  const availableBalance = (profitEarned + refEarned) - withdrawn;
+  
+  // Total Earned = Profits + Referral
+  const totalEarned = profitEarned + refEarned;
+  
+  // Update UI
+  document.getElementById('stat-invested').textContent=fmt(invested);
+  document.getElementById('stat-balance').textContent=fmt(Math.max(0, availableBalance));
+  document.getElementById('stat-withdrawn').textContent=fmt(withdrawn);
+  document.getElementById('stat-profits').textContent=fmt(profitEarned + refEarned);
+  document.getElementById('stat-total-earned').textContent=fmt(totalEarned);
+  const el=document.getElementById('reinvest-balance-display'); if(el)el.textContent=fmt(Math.max(0, availableBalance));
 }
 
 function filterHistory(type, tabEl){
@@ -1107,7 +1118,7 @@ function runDailyProfits(){
   const deposits=currentUser.deposits?Object.entries(currentUser.deposits):[];
   if(!deposits.length) return;
   const todayKey=getDateKey(new Date());
-  let newBalance=currentUser.balance||0;
+  let totalProfit=0;
   let anyPaid=false;
   const updates = {};
   for(const [key,dep] of deposits){
@@ -1119,20 +1130,19 @@ function runDailyProfits(){
     while(getDateKey(cursor)<=todayKey && daysRun<72){
       const dateKey=getDateKey(cursor);
       const profit=Math.floor(dep.amount*0.10);
-      newBalance+=profit;
+      totalProfit+=profit;
       const txKey='txp_'+dateKey.replace(/-/g,'')+'_'+key.slice(-5);
       updates['transactions/'+txKey]={type:'Profit',amount:profit,note:'Daily 10% profit — Day '+(daysRun+1)+'/72',date:dateKey+' 00:00'};
       updates['deposits/'+key+'/daysRun']=daysRun+1;
       updates['deposits/'+key+'/lastPaidDate']=dateKey;
-      updates['profitEarned']=(currentUser.profitEarned||0)+profit;
       daysRun++; anyPaid=true;
       cursor=addDays(cursor,1);
     }
   }
   if(anyPaid){
-    updates['balance']=newBalance;
+    updates['profitEarned']=(currentUser.profitEarned||0)+totalProfit;
     dbUpdate('users/'+safeKey(currentUsername), updates);
-    currentUser.balance=newBalance;
+    currentUser.profitEarned=(currentUser.profitEarned||0)+totalProfit;
     updateBalanceUI();
     renderHistory();
   }
@@ -1294,15 +1304,14 @@ function startDepositPolling(marzUUID, txKey, amount, txDate){
         document.getElementById('dep-amount').value='';
         // Credit user
         const profit = Math.floor(amount * 0.10);
-        const newBalance = (currentUser.balance||0) + amount + profit;
         const newInvested = (currentUser.invested||0) + amount;
+        const newProfitEarned = (currentUser.profitEarned||0) + profit;
         const depKey = 'dep_'+Date.now();
         const profitTxKey = 'txp_inst_'+Date.now();
         const credUpdates = {};
-        credUpdates['balance'] = newBalance;
         credUpdates['invested'] = newInvested;
+        credUpdates['profitEarned'] = newProfitEarned;
         credUpdates['activated'] = true;
-        credUpdates['profitEarned'] = (currentUser.profitEarned||0)+profit;
         credUpdates['transactions/'+txKey+'/status'] = 'approved';
         credUpdates['transactions/'+txKey+'/note'] = 'Deposit confirmed ✅';
         credUpdates['transactions/'+profitTxKey] = {type:'Profit',amount:profit,note:'10% instant profit on deposit',date:dateStr()};
@@ -1348,7 +1357,6 @@ async function creditReferralBonuses(depositorUsername, amount){
       if(bonus>0){
         const rTxKey = 'tx_'+Date.now()+'_ref'+i+'_'+Math.random().toString(36).slice(2,6);
         const ru = {};
-        ru['users/'+safeKey(upline)+'/balance'] = (uplineData.balance||0)+bonus;
         ru['users/'+safeKey(upline)+'/refEarned'] = (uplineData.refEarned||0)+bonus;
         ru['users/'+safeKey(upline)+'/transactions/'+rTxKey] = {type:'Referral',amount:bonus,note:'Level '+(i+1)+' bonus from '+depositorUsername,date:dateStr()};
         if(uplineData.referrals&&uplineData.referrals[safeKey(depositorUsername)]){
@@ -1370,7 +1378,14 @@ async function doWithdraw(){
   const minWith = settingsData.minWithdraw||5000;
   const amount = parseInt(document.getElementById('with-amount').value)||0;
   if(amount<minWith){ setErr('with-amount-err',true,'Minimum withdrawal is '+fmt(minWith)); return; }
-  if((currentUser.balance||0)<amount){ setErr('with-amount-err',true,'Insufficient balance'); return; }
+  
+  // Calculate correct available balance (Profits + Referral - Already Withdrawn)
+  const profitEarned = currentUser.profitEarned || 0;
+  const refEarned = currentUser.refEarned || 0;
+  const withdrawn = currentUser.withdrawn || 0;
+  const availableBalance = (profitEarned + refEarned) - withdrawn;
+  
+  if(availableBalance < amount){ setErr('with-amount-err',true,'Insufficient balance. You can only withdraw from profits and referral earnings.'); return; }
 
   if(!settingsData.marzApiKey){ showModal('⚠️','Payments Unavailable','Payment processing is not configured. Please contact support.'); return; }
 
@@ -1380,15 +1395,15 @@ async function doWithdraw(){
   const now = dateStr();
   const txKey = 'tx_wd_'+Date.now();
   const reqKey = 'wreq_'+Date.now();
-  const newBalance = (currentUser.balance||0)-amount;
+  const newWithdrawn = (currentUser.withdrawn||0) + amount;
   const reference = genUUID();
 
   const btn = document.getElementById('with-submit-btn');
   btn.disabled = true; btn.textContent = '⏳ Processing...';
 
-  // Deduct balance immediately
+  // Record withdrawal
   const updates = {};
-  updates['balance'] = newBalance;
+  updates['withdrawn'] = newWithdrawn;
   updates['transactions/'+txKey] = {type:'Withdrawal',amount:-amount,note:'Processing... Will be sent to '+phone,date:now,status:'pending',marzRef:reference};
   dbUpdate('users/'+safeKey(currentUsername), updates);
   updateBalanceUI();
@@ -1438,9 +1453,17 @@ function doReinvest(){
   clearErrors('reinvest-amount-err');
   const amount=parseInt(document.getElementById('reinvest-amount').value)||0;
   if(amount<10000){setErr('reinvest-amount-err',true,'Minimum re-invest is UGX 10,000');return;}
-  if((currentUser.balance||0)<amount){setErr('reinvest-amount-err',true,'Insufficient balance');return;}
+  
+  // Calculate correct available balance (Profits + Referral - Already Withdrawn)
+  const profitEarned = currentUser.profitEarned || 0;
+  const refEarned = currentUser.refEarned || 0;
+  const withdrawn = currentUser.withdrawn || 0;
+  const availableBalance = (profitEarned + refEarned) - withdrawn;
+  
+  if(availableBalance < amount){setErr('reinvest-amount-err',true,'Insufficient balance. You can only re-invest from profits and referral earnings.');return;}
+  
   const profit=Math.floor(amount*0.10);
-  const newBalance=(currentUser.balance||0)-amount+profit;
+  const newAvailableBalance = availableBalance - amount + profit;
   const newInvested=(currentUser.invested||0)+amount;
   const depKey='dep_'+Date.now();
   const now=dateStr();
@@ -1448,12 +1471,12 @@ function doReinvest(){
   const tx2Key='tx_'+Date.now()+'b';
   const todayKey=getDateKey(new Date());
   const updates = {};
-  updates['balance']=newBalance;
+  updates['profitEarned']=(currentUser.profitEarned||0)-amount+profit;
+  updates['withdrawn']=(currentUser.withdrawn||0);
   updates['invested']=newInvested;
-  updates['profitEarned']=(currentUser.profitEarned||0)+profit;
   updates['activated']=true;
   updates['deposits/'+depKey]={amount,startDate:new Date().toISOString(),daysRun:0,lastPaidDate:todayKey};
-  updates['transactions/'+tx1Key]={type:'Re-Invest',amount:-amount,note:'Moved from Balance to Invested',date:now};
+  updates['transactions/'+tx1Key]={type:'Re-Invest',amount:-amount,note:'Moved from Available Balance to Invested',date:now};
   updates['transactions/'+tx2Key]={type:'Profit',amount:profit,note:'10% instant profit on re-invest (72 days)',date:now};
   dbUpdate('users/'+safeKey(currentUsername), updates);
   document.getElementById('reinvest-amount').value='';
