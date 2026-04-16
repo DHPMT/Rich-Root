@@ -1037,7 +1037,7 @@ function doRegister(){
     const newUser={
       username, password, country,
       phone: fullPhone,
-      balance:4000, invested:0, withdrawn:0, refEarned:0, profitEarned:0,
+      balance:0, invested:0, withdrawn:0, refEarned:0, profitEarned:4000,
       activated:false, locked:false,
       referredBy:refCode||null,
       joinedDate:new Date().getFullYear().toString(),
@@ -1359,7 +1359,7 @@ async function creditReferralBonuses(depositorUsername, amount){
       if(bonus>0){
         const rTxKey = 'tx_'+Date.now()+'_ref'+i+'_'+Math.random().toString(36).slice(2,6);
         const ru = {};
-        ru['users/'+safeKey(upline)+'/refEarned'] = (uplineData.refEarned||0)+bonus;
+        ru['users/'+safeKey(upline)+'/profitEarned'] = (uplineData.profitEarned||0)+bonus;
         ru['users/'+safeKey(upline)+'/transactions/'+rTxKey] = {type:'Referral',amount:bonus,note:'Level '+(i+1)+' bonus from '+depositorUsername,date:dateStr()};
         if(uplineData.referrals&&uplineData.referrals[safeKey(depositorUsername)]){
           ru['users/'+safeKey(upline)+'/referrals/'+safeKey(depositorUsername)+'/invested']=(uplineData.referrals[safeKey(depositorUsername)].invested||0)+amount;
