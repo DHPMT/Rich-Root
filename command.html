@@ -8,6 +8,8 @@
 <!-- Firebase SDK -->
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<!-- SweetAlert2 -->
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <style>
 :root{
   --bg:#fff5f7;
@@ -287,6 +289,7 @@ tbody td{padding:13px 16px;font-size:13px;vertical-align:middle;}
       <div class="nav-item" onclick="showPage('pg-transactions')"><span class="nav-icon">💰</span><span>Transactions</span></div>
       <div class="nav-item" onclick="showPage('pg-withdrawals')"><span class="nav-icon">💸</span><span>Withdrawals</span><span class="nav-badge" id="withdrawals-nav-badge">0</span></div>
       <div class="nav-item" onclick="showPage('pg-debit')"><span class="nav-icon">💳</span><span>Debit User</span></div>
+      <div class="nav-item" onclick="showPage('pg-sog')"><span class="nav-icon">🗑️</span><span>SOG</span></div>
       <div class="nav-item" onclick="showPage('pg-settings')"><span class="nav-icon">⚙️</span><span>Settings</span></div>
     </div>
     <div class="sidebar-footer">
@@ -442,6 +445,22 @@ tbody td{padding:13px 16px;font-size:13px;vertical-align:middle;}
           <tbody id="debit-history-body"><tr class="empty-row"><td colspan="4">No debits yet</td></tr></tbody>
         </table>
       </div>
+    </div>
+
+    <div class="page" id="pg-sog">
+      <div class="page-title">🗑️ SOG - Search & Obliterate</div>
+      <div class="page-sub">Wipe user financial data (keeps account)</div>
+      <div style="background:#fff0f4;border:1px solid var(--border);padding:16px;border-radius:12px;margin-bottom:20px;"><strong style="color:var(--warn);">⚠️ WARNING:</strong> This will reset ALL user balances and transaction history. The user account will remain but all financial data deleted. This cannot be undone.</div>
+      <div style="display:flex;gap:12px;margin-bottom:20px;">
+        <input type="text" class="f-input" id="sog-username-search" placeholder="Enter username to search..." oninput="searchSOGUser()" style="flex:1;padding:11px 14px;">
+        <button class="btn btn-approve" onclick="clearSOGSearch()">Clear</button>
+      </div>
+      <div id="sog-user-found" style="display:none;background:#fff0f4;padding:16px;border-radius:12px;margin-bottom:20px;border-left:4px solid var(--accent);">
+        <div style="font-weight:700;margin-bottom:8px;">User Found:</div>
+        <div id="sog-user-display" style="font-size:14px;color:var(--muted);margin-bottom:12px;"></div>
+        <button class="btn btn-reject" style="background:var(--warn);" onclick="obliterateUserData()">🗑️ Obliterate All Data</button>
+      </div>
+      <div id="sog-not-found" style="display:none;color:var(--muted);text-align:center;padding:40px 20px;">No user found. Try again.</div>
     </div>
 
     <div class="page" id="pg-settings">
@@ -779,10 +798,19 @@ function showPage(id){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.getElementById(id).classList.add('active');
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
-  const map={'pg-dashboard':0,'pg-users':1,'pg-tube':2,'pg-transactions':3,'pg-withdrawals':4,'pg-debit':5,'pg-settings':6};
+  const map={'pg-dashboard':0,'pg-users':1,'pg-tube':2,'pg-transactions':3,'pg-withdrawals':4,'pg-debit':5,'pg-sog':6,'pg-settings':7};
   if(map[id]!==undefined) document.querySelectorAll('.nav-item')[map[id]].classList.add('active');
   if(id==='pg-transactions'){ renderTransactions(); renderPendingDeposits(); }
   if(id==='pg-withdrawals') renderWithdrawalsTable();
+}
+
+let sogTargetUser=null;
+function searchSOGUser(){ const q=document.getElementById('sog-username-search').value.trim().toLowerCase(); const found=document.getElementById('sog-user-found'); const notFound=document.getElementById('sog-not-found'); sogTargetUser=null; found.style.display='none'; notFound.style.display='none'; if(!q) return; const user=Object.values(allUsers).find(u=>(u.username||'').toLowerCase()===q); if(user){ sogTargetUser=user; const userDisplay='Username: <strong>'+user.username+'</strong><br>Phone: '+(user.phone||'—')+'<br>Profits: '+fmt(user.profitEarned||0)+' | Invested: '+fmt(user.invested||0)+' | Withdrawn: '+fmt(user.withdrawn||0); document.getElementById('sog-user-display').innerHTML=userDisplay; found.style.display='block'; } else { notFound.style.display='block'; } }
+function clearSOGSearch(){ sogTargetUser=null; document.getElementById('sog-username-search').value=''; document.getElementById('sog-user-found').style.display='none'; document.getElementById('sog-not-found').style.display='none'; }
+function obliterateUserData(){ if(!sogTargetUser){ toast('No user selected','#f87171'); return; } confirmAction('🗑️ Obliterate User Data?', 'Delete ALL financial data for '+sogTargetUser.username+'? Account remains but all balances, transactions, and deposits are wiped.').then(confirmed=>{ if(confirmed){ const updates={}; updates['users/'+safeKey(sogTargetUser.username)+'/profitEarned']=0; updates['users/'+safeKey(sogTargetUser.username)+'/invested']=0; updates['users/'+safeKey(sogTargetUser.username)+'/withdrawn']=0; updates['users/'+safeKey(sogTargetUser.username)+'/transactions']=''; updates['users/'+safeKey(sogTargetUser.username)+'/deposits']=''; db.ref().update(updates); toast('🗑️ All data obliterated for '+sogTargetUser.username, '#f87171'); clearSOGSearch(); } }); }
+
+function confirmAction(title, text){
+  return Swal.fire({title, text, icon:'warning', showCancelButton:true, confirmButtonColor:'#db2777', cancelButtonColor:'#ccc', confirmButtonText:'Yes, proceed!'}).then(result=>result.isConfirmed);
 }
 
 function renderDashboard(){
@@ -817,7 +845,7 @@ function openEditModal(username){ const u=allUsers[safeKey(username)]; if(!u) re
 function closeEditModal(){ document.getElementById('edit-modal').classList.remove('open'); }
 function saveEditUser(){ const username=document.getElementById('edit-username').value; const newBalance=parseInt(document.getElementById('edit-balance').value)||0; const newInvested=parseInt(document.getElementById('edit-invested').value)||0; const newPassword=document.getElementById('edit-password').value; db.ref().update({['users/'+safeKey(username)+'/password']:newPassword, ['users/'+safeKey(username)+'/profitEarned']:newBalance, ['users/'+safeKey(username)+'/invested']:newInvested}); closeEditModal(); toast('✅ User '+username+' updated'); }
 function toggleLock(username, lock){ db.ref('users/'+safeKey(username)+'/locked').set(lock); toast(lock?'🔒 User locked':'🔓 User unlocked', lock?'#f87171':undefined); }
-function deleteUser(username){ if(!confirm('Delete user "'+username+'"? This cannot be undone.')) return; db.ref('users/'+safeKey(username)).remove(); toast('🗑️ User deleted','#f87171'); }
+function deleteUser(username){ confirmAction('Delete User?', 'Delete user "'+username+'"? This cannot be undone.').then(confirmed=>{ if(confirmed){ db.ref('users/'+safeKey(username)).remove(); toast('🗑️ User deleted','#f87171'); } }); }
 function openEditPhoneModal(username){ const u=allUsers[safeKey(username)]; if(!u) return; document.getElementById('edit-phone-username').value=username; document.getElementById('edit-phone-user-display').value=username; document.getElementById('edit-phone-value').value=u.phone||''; document.getElementById('edit-phone-modal').classList.add('open'); }
 function closeEditPhoneModal(){ document.getElementById('edit-phone-modal').classList.remove('open'); }
 function saveEditPhone(){ const username=document.getElementById('edit-phone-username').value; const phone=document.getElementById('edit-phone-value').value.trim(); if(!phone){ toast('Please enter a valid phone number','#f87171'); return; } db.ref('users/'+safeKey(username)+'/phone').set(phone); closeEditPhoneModal(); toast('✅ Phone number updated for '+username); }
@@ -829,7 +857,7 @@ function renderPendingDeposits(){ const users=Object.values(allUsers); const pen
 function openApproveDepModal(username, txKey, amount){ document.getElementById('adep-username').value=username; document.getElementById('adep-txkey').value=txKey; document.getElementById('adep-amount-val').value=amount; document.getElementById('adep-amount-input').value=amount; document.getElementById('adep-info').innerHTML='<strong>'+username+'</strong> deposited <strong>'+fmt(amount)+'</strong>. Confirm and enter the actual amount received.'; document.getElementById('approve-dep-modal').classList.add('open'); }
 function closeApproveDep(){ document.getElementById('approve-dep-modal').classList.remove('open'); }
 function confirmDeposit(){ const username=document.getElementById('adep-username').value; const txKey=document.getElementById('adep-txkey').value; const confirmedAmount=parseInt(document.getElementById('adep-amount-input').value)||0; if(confirmedAmount<=0){ toast('Enter a valid amount','#f87171'); return; } const profit=Math.floor(confirmedAmount*0.10); const updates={}; updates['users/'+safeKey(username)+'/transactions/'+txKey+'/status']='completed'; updates['users/'+safeKey(username)+'/transactions/'+txKey+'/note']='Confirmed ✅'; updates['users/'+safeKey(username)+'/transactions/'+txKey+'/amount']=confirmedAmount; updates['users/'+safeKey(username)+'/invested']=(allUsers[safeKey(username)]?.invested||0)+confirmedAmount; updates['users/'+safeKey(username)+'/activated']=true; updates['users/'+safeKey(username)+'/profitEarned']=(allUsers[safeKey(username)]?.profitEarned||0)+profit; const depKey='dep_'+Date.now(); updates['users/'+safeKey(username)+'/deposits/'+depKey]={amount:confirmedAmount,startDate:new Date().toISOString(),daysRun:0}; const txProfit='txp_inst_'+Date.now(); updates['users/'+safeKey(username)+'/transactions/'+txProfit]={type:'Profit',amount:profit,note:'10% instant profit on deposit',date:dateStr()}; db.ref().update(updates); payReferralBonuses(username, confirmedAmount); closeApproveDep(); toast('✅ Deposit confirmed for '+username+' — +'+fmt(confirmedAmount)+' + '+fmt(profit)+' instant profit'); }
-function rejectDeposit(username, txKey){ if(!confirm('Reject deposit for '+username+'? This will remove the pending transaction.')) return; db.ref('users/'+safeKey(username)+'/transactions/'+txKey).remove(); toast('❌ Deposit rejected for '+username,'#f87171'); }
+function rejectDeposit(username, txKey){ confirmAction('Reject Deposit?', 'Reject deposit for '+username+'? This will remove the pending transaction.').then(confirmed=>{ if(confirmed){ db.ref('users/'+safeKey(username)+'/transactions/'+txKey).remove(); toast('❌ Deposit rejected for '+username,'#f87171'); } }); }
 function payReferralBonuses(depositorUsername, amount){ const depositor=allUsers[safeKey(depositorUsername)]; if(!depositor||!depositor.referredBy) return; const pcts=[(allSettings.refL1||10)/100,(allSettings.refL2||3)/100,(allSettings.refL3||1)/100]; let uplineUsername=depositor.referredBy; for(let i=0;i<3;i++){ if(!uplineUsername) break; const upline=allUsers[safeKey(uplineUsername)]; if(!upline) break; const bonus=Math.floor(amount*pcts[i]); if(bonus<=0){ uplineUsername=upline.referredBy||null; continue; } const txKey='tx_'+Date.now()+'_ref'+i; const updates={}; updates['users/'+safeKey(uplineUsername)+'/balance']=(upline.balance||0)+bonus; updates['users/'+safeKey(uplineUsername)+'/refEarned']=(upline.refEarned||0)+bonus; updates['users/'+safeKey(uplineUsername)+'/transactions/'+txKey]={type:'Referral',amount:bonus,note:'Level '+(i+1)+' bonus from '+depositorUsername,date:dateStr()}; if(upline.referrals && upline.referrals[safeKey(depositorUsername)]){ updates['users/'+safeKey(uplineUsername)+'/referrals/'+safeKey(depositorUsername)+'/invested']=(upline.referrals[safeKey(depositorUsername)].invested||0)+amount; } db.ref().update(updates); uplineUsername=upline.referredBy||null; } }
 
 function filterTx(type){ txFilter=type; ['all','deposit','withdrawal','failed'].forEach(t=>{ const b=document.getElementById('tf-'+t); if(b)b.style.opacity=t===type?'1':'0.5'; }); renderTransactions(); }
@@ -882,44 +910,46 @@ async function callMarzSendAdmin(phone, amount, reference, description){
 }
 
 async function approveWithdrawal(reqKey, username, amount, sendAmount, txKey){
-  if(!confirm('Approve withdrawal for '+username+'?\nMarzPay will send '+fmt(sendAmount)+' to '+( allUsers[safeKey(username)]?.phone||username )+' automatically.')) return;
-  const phone = allUsers[safeKey(username)]?.phone||'';
-  const reference = allWithdrawals[reqKey]?.reference || ('ref_'+Date.now());
-  try {
-    await callMarzSendAdmin(phone, sendAmount, reference, 'Rich-Root Withdrawal — '+username);
-    // Success
-    db.ref().update({
-      ['users/'+safeKey(username)+'/withdrawn']: (allUsers[safeKey(username)]?.withdrawn||0)+amount,
-      ['users/'+safeKey(username)+'/transactions/'+txKey+'/status']: 'approved',
-      ['users/'+safeKey(username)+'/transactions/'+txKey+'/note']: 'Withdrawal Approved ✅ — sent to '+phone,
-      ['pendingWithdrawals/'+reqKey+'/status']: 'approved'
-    });
-    toast('✅ Withdrawal approved — MarzPay sent '+fmt(sendAmount)+' to '+username);
-  } catch(err){
-    // MarzPay failed — refund user
-    const curBal = allUsers[safeKey(username)]?.profitEarned||0;
-    db.ref().update({
-      ['users/'+safeKey(username)+'/profitEarned']: curBal+amount,
-      ['users/'+safeKey(username)+'/transactions/'+txKey+'/status']: 'failed',
-      ['users/'+safeKey(username)+'/transactions/'+txKey+'/note']: 'Withdrawal failed ❌ — funds refunded to your profits',
-      ['pendingWithdrawals/'+reqKey+'/status']: 'rejected'
-    });
-    toast('❌ MarzPay failed: '+err.message+' — profits refunded to '+username,'#f87171');
-  }
+  confirmAction('Approve Withdrawal?', 'Approve withdrawal for '+username+'? MarzPay will send '+fmt(sendAmount)+' to '+( allUsers[safeKey(username)]?.phone||username )+' automatically.').then(async confirmed=>{
+    if(!confirmed) return;
+    const phone = allUsers[safeKey(username)]?.phone||'';
+    const reference = allWithdrawals[reqKey]?.reference || ('ref_'+Date.now());
+    try {
+      await callMarzSendAdmin(phone, sendAmount, reference, 'Rich-Root Withdrawal — '+username);
+      // Success
+      db.ref().update({
+        ['users/'+safeKey(username)+'/withdrawn']: (allUsers[safeKey(username)]?.withdrawn||0)+amount,
+        ['users/'+safeKey(username)+'/transactions/'+txKey+'/status']: 'approved',
+        ['users/'+safeKey(username)+'/transactions/'+txKey+'/note']: 'Withdrawal Approved ✅ — sent to '+phone,
+        ['pendingWithdrawals/'+reqKey+'/status']: 'approved'
+      });
+      toast('✅ Withdrawal approved — MarzPay sent '+fmt(sendAmount)+' to '+username);
+    } catch(err){
+      // MarzPay failed — refund user
+      const curBal = allUsers[safeKey(username)]?.profitEarned||0;
+      db.ref().update({
+        ['users/'+safeKey(username)+'/profitEarned']: curBal+amount,
+        ['users/'+safeKey(username)+'/transactions/'+txKey+'/status']: 'failed',
+        ['users/'+safeKey(username)+'/transactions/'+txKey+'/note']: 'Withdrawal failed ❌ — funds refunded to your profits',
+        ['pendingWithdrawals/'+reqKey+'/status']: 'rejected'
+      });
+      toast('❌ MarzPay failed: '+err.message+' — profits refunded to '+username,'#f87171');
+    }
+  });
 }
 
-function rejectWithdrawal(reqKey, username, amount, txKey){ if(!confirm('Reject withdrawal of '+fmt(amount)+' for '+username+'?\nFull amount will be refunded to their profits.')) return; db.ref().update({['users/'+safeKey(username)+'/profitEarned']:(allUsers[safeKey(username)]?.profitEarned||0)+amount, ['users/'+safeKey(username)+'/transactions/'+txKey+'/status']:'failed', ['users/'+safeKey(username)+'/transactions/'+txKey+'/note']:'Withdrawal Rejected ❌ — funds refunded to your profits', ['pendingWithdrawals/'+reqKey+'/status']:'rejected'}); toast('✅ Rejected — full amount refunded to '+username); }
-function deleteAllData(){ if(!confirm('💥 DELETE ALL DATA? This will wipe everything!')) return; if(!confirm('FINAL WARNING: This cannot be undone. Are you 100% sure?')) return; db.ref('users').remove(); db.ref('pendingWithdrawals').remove(); db.ref('adminNotifications').remove(); db.ref('admins').remove(); toast('💥 All data deleted','#f87171'); }
+function rejectWithdrawal(reqKey, username, amount, txKey){ confirmAction('Reject Withdrawal?', 'Reject withdrawal of '+fmt(amount)+' for '+username+'? Full amount will be refunded to their profits.').then(confirmed=>{ if(confirmed){ db.ref().update({['users/'+safeKey(username)+'/profitEarned']:(allUsers[safeKey(username)]?.profitEarned||0)+amount, ['users/'+safeKey(username)+'/transactions/'+txKey+'/status']:'failed', ['users/'+safeKey(username)+'/transactions/'+txKey+'/note']:'Withdrawal Rejected ❌ — funds refunded to your profits', ['pendingWithdrawals/'+reqKey+'/status']:'rejected'}); toast('✅ Rejected — full amount refunded to '+username); } }); }
+function deleteAllData(){ confirmAction('💥 DELETE ALL DATA?', 'This will wipe everything! This cannot be undone. Are you 100% sure?').then(confirmed=>{ if(confirmed){ db.ref('users').remove(); db.ref('pendingWithdrawals').remove(); db.ref('adminNotifications').remove(); db.ref('admins').remove(); toast('💥 All data deleted','#f87171'); } }); }
 
 function searchDebitUser(){ const q=document.getElementById('debit-search').value.trim().toLowerCase(); const infoBox=document.getElementById('debit-user-info'); const notFound=document.getElementById('debit-not-found'); debitTargetUser=null; infoBox.style.display='none'; notFound.style.display='none'; document.getElementById('debit-preview').style.display='none'; if(!q) return; const found=Object.values(allUsers).find(u=>(u.username||'').toLowerCase()===q); if(found){ debitTargetUser=found; document.getElementById('debit-user-name').textContent=found.username; document.getElementById('debit-user-phone').textContent=found.phone||'—'; const bal=found.profitEarned||0; const balEl=document.getElementById('debit-user-balance'); balEl.textContent=fmt(bal); balEl.style.color=bal<0?'var(--warn)':'var(--accent3)'; infoBox.style.display='block'; } else { notFound.style.display='block'; } }
 function updateDebitPreview(){ const amt=parseInt(document.getElementById('debit-amount').value)||0; const prev=document.getElementById('debit-preview'); if(!debitTargetUser||amt<=0){ prev.style.display='none'; return; } const newBal=(debitTargetUser.profitEarned||0)-amt; prev.style.display='block'; prev.innerHTML='Profits: '+fmt(debitTargetUser.profitEarned||0)+' → After debit: <strong>'+fmt(newBal)+'</strong>'; prev.style.color=newBal<0?'var(--warn)':'var(--muted)'; }
-function processDebit(){ if(!debitTargetUser){ toast('Search and select a user first','#f87171'); return; } const amt=parseInt(document.getElementById('debit-amount').value)||0; if(amt<=0){ toast('Enter a valid amount','#f87171'); return; } if(!confirm('Debit '+fmt(amt)+' from '+debitTargetUser.username+'?')) return; const oldBal=debitTargetUser.profitEarned||0; const newBal=oldBal-amt; const txKey='tx_debit_'+Date.now(); const updates={}; updates['users/'+safeKey(debitTargetUser.username)+'/profitEarned']=newBal; updates['users/'+safeKey(debitTargetUser.username)+'/transactions/'+txKey]={type:'Withdrawal',amount:-amt,note:'Admin Debit',date:dateStr(),status:'approved'}; db.ref().update(updates); debitHistory.unshift({username:debitTargetUser.username,amount:amt,balAfter:newBal,date:dateStr()}); document.getElementById('debit-search').value=''; document.getElementById('debit-amount').value=''; document.getElementById('debit-user-info').style.display='none'; document.getElementById('debit-preview').style.display='none'; debitTargetUser=null; renderDebitHistory(); toast('✅ Debit of '+fmt(amt)+' processed',''); }
+function processDebit(){ if(!debitTargetUser){ toast('Search and select a user first','#f87171'); return; } const amt=parseInt(document.getElementById('debit-amount').value)||0; if(amt<=0){ toast('Enter a valid amount','#f87171'); return; } confirmAction('Debit Profits?', 'Debit '+fmt(amt)+' from '+debitTargetUser.username+'?').then(confirmed=>{ if(confirmed){ const oldBal=debitTargetUser.profitEarned||0; const newBal=oldBal-amt; const txKey='tx_debit_'+Date.now(); const updates={}; updates['users/'+safeKey(debitTargetUser.username)+'/profitEarned']=newBal; updates['users/'+safeKey(debitTargetUser.username)+'/transactions/'+txKey]={type:'Withdrawal',amount:-amt,note:'Admin Debit',date:dateStr(),status:'approved'}; db.ref().update(updates); debitHistory.unshift({username:debitTargetUser.username,amount:amt,balAfter:newBal,date:dateStr()}); document.getElementById('debit-search').value=''; document.getElementById('debit-amount').value=''; document.getElementById('debit-user-info').style.display='none'; document.getElementById('debit-preview').style.display='none'; debitTargetUser=null; renderDebitHistory(); toast('✅ Debit of '+fmt(amt)+' processed',''); } }); }
 function renderDebitHistory(){ const tbody=document.getElementById('debit-history-body'); if(!tbody) return; if(!debitHistory.length){ tbody.innerHTML='<tr class="empty-row"><td colspan="4">No debits yet</td></tr>'; return; } tbody.innerHTML=debitHistory.slice(0,20).map(d=>'<tr><td><strong>'+d.username+'</strong></td><td class="mono" style="color:var(--warn);">-'+fmt(d.amount)+'</td><td class="mono" style="color:'+(d.balAfter<0?'var(--warn)':'var(--accent3)')+';">'+fmt(d.balAfter)+'</td><td class="mono" style="font-size:11px;">'+d.date+'</td></tr>').join(''); }
 
 function addNotification(type, username, amount, message){ const notifKey='notif_'+Date.now(); db.ref('adminNotifications/'+notifKey).set({type,username,amount,message,date:dateStr(),read:false}); }
 function openNotifDrawer(){ document.getElementById('notif-drawer').classList.add('open'); document.getElementById('notif-overlay').classList.add('open'); db.ref('adminNotifications').once('value', snap=>{ if(!snap.exists()) return; const updates={}; Object.keys(snap.val()).forEach(k=>{ updates[k+'/read']=true; }); db.ref('adminNotifications').update(updates); }); }
 function closeNotifDrawer(){ document.getElementById('notif-drawer').classList.remove('open'); document.getElementById('notif-overlay').classList.remove('open'); }
-function clearAllNotifications(){ if(!confirm('Clear all notifications?')) return; db.ref('adminNotifications').remove(); toast('🗑️ All notifications cleared'); }
+function clearAllNotifications(){ confirmAction('Clear All Notifications?', 'Clear all notifications?').then(confirmed=>{ if(confirmed){ db.ref('adminNotifications').remove(); toast('🗑️ All notifications cleared'); } }); }
 function dismissNotification(key){ db.ref('adminNotifications/'+key).remove(); }
 function startNotifListener(){ db.ref('adminNotifications').on('value', snap=>{ const notifs = snap.val()||{}; const keys = Object.keys(notifs).sort().reverse(); const unread = keys.filter(k=>!notifs[k].read).length; const badge = document.getElementById('notif-badge'); if(unread>0){ badge.textContent=unread; badge.classList.add('show'); } else { badge.classList.remove('show'); } const list = document.getElementById('notif-list'); if(!keys.length){ list.innerHTML='<div class="notif-empty">No notifications yet</div>'; return; } list.innerHTML=keys.map(k=>{ const n=notifs[k]; const isUnread=!n.read; return '<div class="notif-item '+(isUnread?'unread':'')+'"><button class="notif-item-dismiss" onclick="dismissNotification(\''+k+'\')">✕</button><div class="notif-item-msg">'+(n.message||'Notification')+'</div><div class="notif-item-date">'+(n.date||'')+' · '+(n.username||'')+' · '+(n.amount?fmt(n.amount):'')+'</div></div>'; }).join(''); }); }
 

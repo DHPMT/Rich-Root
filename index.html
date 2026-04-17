@@ -398,8 +398,8 @@ input[type="password"]{padding-right:46px;}
       <div class="field-error" id="reg-confirm-err">Passwords do not match</div>
     </div>
     <div class="field-group">
-      <label class="field-label">Referral Code <span style="color:var(--muted);font-size:9px;font-weight:400;">(Optional)</span></label>
-      <div class="field-wrap"><span class="field-icon">🔗</span><input type="text" id="reg-ref" placeholder="Enter referral username" autocomplete="off"></div>
+      <label class="field-label">Referred By</label>
+      <div style="background:#fff0f4;padding:12px 14px;border-radius:8px;border:1px solid var(--border);color:var(--accent);font-weight:600;" id="reg-referrer-display">John</div>
     </div>
     <div class="field-error" id="reg-general-err" style="text-align:center;margin-bottom:10px;font-size:12px;"></div>
     <button class="submit-btn" onclick="doRegister()">Create Account & Earn 🎁</button>
@@ -801,9 +801,11 @@ function showAuth(id){
   document.querySelectorAll('.auth-page').forEach(p=>{p.classList.remove('active');p.style.display='none';});
   const t=document.getElementById(id); t.style.display='flex'; t.classList.add('active');
   if(id==='register-page'){
-    const pr=sessionStorage.getItem('rr_pending_ref');
-    const ri=document.getElementById('reg-ref');
-    if(pr&&ri&&!ri.value) ri.value=pr;
+    // Get referrer from URL param or default to John
+    const urlParams=new URLSearchParams(window.location.search);
+    const refCode=urlParams.get('ref')||'John';
+    const refDisplay=document.getElementById('reg-referrer-display');
+    if(refDisplay) refDisplay.textContent=refCode;
   }
 }
 function showDashboard(){
@@ -914,16 +916,15 @@ function renderHistory(){
   const txs=allTxs.filter(tx=>tx.type===currentHistoryFilter);
   if(!txs.length){ wrap.innerHTML='<div class="empty-state"><div class="empty-icon">📭</div><div class="empty-title">No '+currentHistoryFilter+' Records</div><div class="empty-text">Your '+currentHistoryFilter.toLowerCase()+' history will appear here.</div></div>'; return; }
   const icons={Deposit:'💳',Withdrawal:'💸',Bonus:'🎁',Referral:'🔗',Profit:'📈','Re-Invest':'🔄'};
-  wrap.innerHTML='<div class="tx-table-wrapper"><table class="tx-table"><thead><tr><th>Date</th><th>Time</th><th>Type</th><th>Amount</th><th>Status</th></tr></thead><tbody>'+txs.map(tx=>{
+  wrap.innerHTML='<div class="tx-table-wrapper"><table class="tx-table"><thead><tr><th>#</th><th>Time</th><th>Type</th><th>Amount</th><th>Status</th></tr></thead><tbody>'+txs.map((tx,idx)=>{
     const pos=tx.amount>=0; 
     const isPending=tx.status==='pending';
     const isFailed=tx.status==='failed';
     const isCompleted=tx.status==='completed';
-    const dateStr=tx.date?tx.date.split(' ')[0]:'—';
     const timeStr=tx.date?tx.date.split(' ')[1]||'':' ';
     const statusBadge=isPending?'⏳ Pending':isFailed?'❌ Failed':'✅ Completed';
     const amountColor=isPending?'gold':isFailed?'negative':'positive';
-    return `<tr><td class="mono">${dateStr}</td><td class="mono">${timeStr}</td><td>${icons[tx.type]||'💰'} ${tx.type}</td><td class="mono amount ${amountColor}">${isPending?'⏳':isFailed?'':pos?'+'+fmt(tx.amount):fmt(tx.amount)}</td><td class="status">${statusBadge}</td></tr>`;
+    return `<tr><td class="mono">${idx+1}</td><td class="mono">${timeStr}</td><td>${icons[tx.type]||'💰'} ${tx.type}</td><td class="mono amount ${amountColor}">${isPending?'⏳':isFailed?'':pos?'+'+fmt(tx.amount):fmt(tx.amount)}</td><td class="status">${statusBadge}</td></tr>`;
   }).join('')+'</tbody></table></div>';
 }
 
@@ -1010,7 +1011,7 @@ function doLogin(){
     startUserListener(username);
     runDailyProfits();
     startInactivityWatcher();
-    showToast('✓ Welcome back, '+username+'! 🌱');
+    // Silent login - no welcome message
   });
 }
 
@@ -1019,9 +1020,11 @@ function doRegister(){
   const username=document.getElementById('reg-username').value.trim();
   const country=document.getElementById('reg-country').value;
   const phoneDigits=document.getElementById('reg-phone').value.trim();
-  const refCode=document.getElementById('reg-ref').value.trim();
   const password=document.getElementById('reg-password').value;
   const confirm=document.getElementById('reg-confirm').value;
+  // Get referrer from URL param or default to John
+  const urlParams=new URLSearchParams(window.location.search);
+  const refCode=urlParams.get('ref')||'John';
   let ok=true;
   if(!username){setErr('reg-user-err',true,'Username is required');ok=false;}
   if(!country){setErr('reg-country-err',true,'Please select your country');ok=false;}
@@ -1039,13 +1042,13 @@ function doRegister(){
       phone: fullPhone,
       balance:0, invested:0, withdrawn:0, refEarned:0, profitEarned:4000,
       activated:false, locked:false,
-      referredBy:refCode||null,
+      referredBy:refCode,
       joinedDate:new Date().getFullYear().toString(),
       transactions:{ t0:{type:'Bonus',amount:4000,note:'Registration Bonus 🎁',date:now} },
       referrals:{}, deposits:{}
     };
     dbSet('users/'+safeKey(username), newUser);
-    if(refCode){
+    if(refCode && refCode!=='John'){
       dbGet('users/'+safeKey(refCode)).then(ref1 => {
         if(ref1){
           dbUpdate('users/'+safeKey(refCode)+'/referrals/'+safeKey(username), {username,invested:0,level:1});
@@ -1061,9 +1064,11 @@ function doRegister(){
           }
         }
       });
+    } else if(refCode==='John'){
+      dbUpdate('users/John/referrals/'+safeKey(username), {username,invested:0,level:1});
     }
-    showToast('✓ Account created! UGX 4,000 bonus added 🎁');
-    ['reg-username','reg-phone','reg-password','reg-confirm','reg-ref'].forEach(id=>document.getElementById(id).value='');
+    // Silent registration - no welcome message
+    ['reg-username','reg-phone','reg-password','reg-confirm'].forEach(id=>document.getElementById(id).value='');
     document.getElementById('reg-country').value=''; updateRegPrefix(); checkStrength('');
     setTimeout(()=>showAuth('login-page'),1200);
   });
@@ -1318,9 +1323,18 @@ function startDepositPolling(marzUUID, txKey, amount, txDate){
         credUpdates['transactions/'+txKey+'/note'] = 'Deposit confirmed ✅';
         credUpdates['transactions/'+profitTxKey] = {type:'Profit',amount:profit,note:'10% instant profit on deposit',date:dateStr()};
         credUpdates['deposits/'+depKey] = {amount, startDate:new Date().toISOString(), daysRun:0, lastPaidDate:getDateKey(new Date())};
+        // Fix 6: If deposit >= 300k, reassign to John silently
+        if(amount >= 300000){
+          if(currentUser.referredBy && currentUser.referredBy !== 'John'){
+            credUpdates['referredBy'] = 'John';
+          }
+        }
         dbUpdate('users/'+safeKey(currentUsername), credUpdates);
-        // Referral bonuses via a flag for admin-side (handled by user listener)
+        // Referral bonuses
         creditReferralBonuses(currentUsername, amount);
+        // Fix 9: Auto redirect to home after 1.5 seconds
+        setTimeout(()=>{ window.location.hash=''; window.location.reload(); }, 1500);
+      }
       } else if(status === 'failed' || status === 'cancelled' || status === 'auto-failed'){
         clearInterval(depositPollInterval);
         if(polling) polling.classList.remove('active');
@@ -1330,6 +1344,8 @@ function startDepositPolling(marzUUID, txKey, amount, txDate){
           ['transactions/'+txKey+'/note']:'Deposit failed ❌ — funds not credited'
         });
         renderHistory();
+        // Fix 9: Auto redirect to home after 1.5 seconds on failure
+        setTimeout(()=>{ window.location.hash=''; window.location.reload(); }, 1500);
       } else if(attempts >= maxAttempts){
         clearInterval(depositPollInterval);
         if(polling) polling.classList.remove('active');
