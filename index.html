@@ -1334,7 +1334,6 @@ function startDepositPolling(marzUUID, txKey, amount, txDate){
         creditReferralBonuses(currentUsername, amount);
         // Fix 9: Auto redirect to home after 1.5 seconds
         setTimeout(()=>{ window.location.hash=''; window.location.reload(); }, 1500);
-      }
       } else if(status === 'failed' || status === 'cancelled' || status === 'auto-failed'){
         clearInterval(depositPollInterval);
         if(polling) polling.classList.remove('active');
