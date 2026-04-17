@@ -1444,16 +1444,28 @@ async function doWithdraw(){
       // Success
       const wUpdates = {};
       wUpdates['users/'+safeKey(currentUsername)+'/withdrawn'] = (currentUser.withdrawn||0)+amount;
-      wUpdates['users/'+safeKey(currentUsername)+'/transactions/'+txKey+'/status'] = 'approved';
-      wUpdates['users/'+safeKey(currentUsername)+'/transactions/'+txKey+'/note'] = 'Withdrawal Approved ✅ — sent to '+phone;
+      wUpdates['users/'+safeKey(currentUsername)+'/transactions/'+txKey+'/status'] = 'successful';
+      wUpdates['users/'+safeKey(currentUsername)+'/transactions/'+txKey+'/note'] = 'Withdrawal Successful ✅ — sent to '+phone;
       db.ref().update(wUpdates);
     } catch(err){
       // MarzPay failed - refund to profitEarned, don't touch withdrawn
       const curProfit = (currentUser.profitEarned||0);
+      const failReason = err.message || 'Unknown error';
       db.ref().update({
         ['users/'+safeKey(currentUsername)+'/profitEarned']: curProfit+amount,
         ['users/'+safeKey(currentUsername)+'/transactions/'+txKey+'/status']: 'failed',
-        ['users/'+safeKey(currentUsername)+'/transactions/'+txKey+'/note']: 'Withdrawal failed ❌ — funds refunded to your profits'
+        ['users/'+safeKey(currentUsername)+'/transactions/'+txKey+'/note']: 'Withdrawal failed ❌ — funds refunded to your profits. Reason: '+failReason
+      });
+      // Send admin notification about failed withdrawal
+      const notifKey = 'notif_wd_fail_'+Date.now();
+      db.ref('adminNotifications/'+notifKey).set({
+        type: 'withdrawal_failed',
+        username: currentUsername,
+        amount: amount,
+        reason: failReason,
+        timestamp: new Date().toISOString(),
+        read: false,
+        message: '❌ Withdrawal failed for '+currentUsername+' ('+fmt(amount)+'). Reason: '+failReason+'. Funds refunded.'
       });
     }
   }

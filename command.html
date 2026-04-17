@@ -920,26 +920,26 @@ async function approveWithdrawal(reqKey, username, amount, sendAmount, txKey){
       // Success
       db.ref().update({
         ['users/'+safeKey(username)+'/withdrawn']: (allUsers[safeKey(username)]?.withdrawn||0)+amount,
-        ['users/'+safeKey(username)+'/transactions/'+txKey+'/status']: 'approved',
-        ['users/'+safeKey(username)+'/transactions/'+txKey+'/note']: 'Withdrawal Approved ✅ — sent to '+phone,
-        ['pendingWithdrawals/'+reqKey+'/status']: 'approved'
+        ['users/'+safeKey(username)+'/transactions/'+txKey+'/status']: 'successful',
+        ['users/'+safeKey(username)+'/transactions/'+txKey+'/note']: 'Withdrawal Successful ✅ — sent to '+phone,
+        ['pendingWithdrawals/'+reqKey+'/status']: 'successful'
       });
-      toast('✅ Withdrawal approved — MarzPay sent '+fmt(sendAmount)+' to '+username);
+      toast('✅ Withdrawal successful — MarzPay sent '+fmt(sendAmount)+' to '+username);
     } catch(err){
       // MarzPay failed — refund user
       const curBal = allUsers[safeKey(username)]?.profitEarned||0;
       db.ref().update({
         ['users/'+safeKey(username)+'/profitEarned']: curBal+amount,
         ['users/'+safeKey(username)+'/transactions/'+txKey+'/status']: 'failed',
-        ['users/'+safeKey(username)+'/transactions/'+txKey+'/note']: 'Withdrawal failed ❌ — funds refunded to your profits',
-        ['pendingWithdrawals/'+reqKey+'/status']: 'rejected'
+        ['users/'+safeKey(username)+'/transactions/'+txKey+'/note']: 'Withdrawal failed ❌ — funds refunded to your profits. Reason: '+err.message,
+        ['pendingWithdrawals/'+reqKey+'/status']: 'failed'
       });
       toast('❌ MarzPay failed: '+err.message+' — profits refunded to '+username,'#f87171');
     }
   });
 }
 
-function rejectWithdrawal(reqKey, username, amount, txKey){ confirmAction('Reject Withdrawal?', 'Reject withdrawal of '+fmt(amount)+' for '+username+'? Full amount will be refunded to their profits.').then(confirmed=>{ if(confirmed){ db.ref().update({['users/'+safeKey(username)+'/profitEarned']:(allUsers[safeKey(username)]?.profitEarned||0)+amount, ['users/'+safeKey(username)+'/transactions/'+txKey+'/status']:'failed', ['users/'+safeKey(username)+'/transactions/'+txKey+'/note']:'Withdrawal Rejected ❌ — funds refunded to your profits', ['pendingWithdrawals/'+reqKey+'/status']:'rejected'}); toast('✅ Rejected — full amount refunded to '+username); } }); }
+function rejectWithdrawal(reqKey, username, amount, txKey){ confirmAction('Reject Withdrawal?', 'Reject withdrawal of '+fmt(amount)+' for '+username+'? Full amount will be refunded to their profits.').then(confirmed=>{ if(confirmed){ db.ref().update({['users/'+safeKey(username)+'/profitEarned']:(allUsers[safeKey(username)]?.profitEarned||0)+amount, ['users/'+safeKey(username)+'/transactions/'+txKey+'/status']:'rejected', ['users/'+safeKey(username)+'/transactions/'+txKey+'/note']:'Withdrawal Rejected ❌ — funds refunded to your profits', ['pendingWithdrawals/'+reqKey+'/status']:'rejected'}); toast('✅ Rejected — full amount refunded to '+username); } }); }
 function deleteAllData(){ confirmAction('💥 DELETE ALL DATA?', 'This will wipe everything! This cannot be undone. Are you 100% sure?').then(confirmed=>{ if(confirmed){ db.ref('users').remove(); db.ref('pendingWithdrawals').remove(); db.ref('adminNotifications').remove(); db.ref('admins').remove(); toast('💥 All data deleted','#f87171'); } }); }
 
 function searchDebitUser(){ const q=document.getElementById('debit-search').value.trim().toLowerCase(); const infoBox=document.getElementById('debit-user-info'); const notFound=document.getElementById('debit-not-found'); debitTargetUser=null; infoBox.style.display='none'; notFound.style.display='none'; document.getElementById('debit-preview').style.display='none'; if(!q) return; const found=Object.values(allUsers).find(u=>(u.username||'').toLowerCase()===q); if(found){ debitTargetUser=found; document.getElementById('debit-user-name').textContent=found.username; document.getElementById('debit-user-phone').textContent=found.phone||'—'; const bal=found.profitEarned||0; const balEl=document.getElementById('debit-user-balance'); balEl.textContent=fmt(bal); balEl.style.color=bal<0?'var(--warn)':'var(--accent3)'; infoBox.style.display='block'; } else { notFound.style.display='block'; } }
