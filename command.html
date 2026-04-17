@@ -843,7 +843,53 @@ function savePw(sk){ const inp=document.getElementById('pwinput_'+sk); if(!inp) 
 
 function openEditModal(username){ const u=allUsers[safeKey(username)]; if(!u) return; document.getElementById('edit-username').value=username; document.getElementById('edit-password').value=u.password||''; document.getElementById('edit-phone-modal').value=u.phone||''; document.getElementById('edit-balance').value=u.profitEarned||0; document.getElementById('edit-invested').value=u.invested||0; document.getElementById('edit-modal').classList.add('open'); }
 function closeEditModal(){ document.getElementById('edit-modal').classList.remove('open'); }
-function saveEditUser(){ const username=document.getElementById('edit-username').value; const newPassword=document.getElementById('edit-password').value; const newPhone=document.getElementById('edit-phone-modal').value; const newBalance=parseInt(document.getElementById('edit-balance').value)||0; const newInvested=parseInt(document.getElementById('edit-invested').value)||0; db.ref().update({['users/'+safeKey(username)+'/password']:newPassword, ['users/'+safeKey(username)+'/phone']:newPhone, ['users/'+safeKey(username)+'/profitEarned']:newBalance, ['users/'+safeKey(username)+'/invested']:newInvested}); closeEditModal(); toast('✅ User '+username+' updated'); }
+async function saveEditUser(){
+  const username=document.getElementById('edit-username').value;
+  const newPassword=document.getElementById('edit-password').value;
+  const newPhone=document.getElementById('edit-phone-modal').value;
+  const oldInvested = allUsers[safeKey(username)]?.invested || 0;
+  const newInvested=parseInt(document.getElementById('edit-invested').value)||0;
+  const newBalance=parseInt(document.getElementById('edit-balance').value)||0;
+
+  const updates={};
+  updates['users/'+safeKey(username)+'/password'] = newPassword;
+  updates['users/'+safeKey(username)+'/phone'] = newPhone;
+  updates['users/'+safeKey(username)+'/profitEarned'] = newBalance;
+  updates['users/'+safeKey(username)+'/invested'] = newInvested;
+  updates['users/'+safeKey(username)+'/activated'] = newInvested > 0;
+
+  // If invested increased, instantly credit 10% of added amount + create deposit record
+  if(newInvested > oldInvested){
+    const addedAmount = newInvested - oldInvested;
+    const instantProfit = Math.floor(addedAmount * 0.10);
+    const creditedBalance = newBalance + instantProfit;
+    const depKey = 'dep_' + Date.now();
+    const tx1Key = 'tx_' + Date.now() + 'a';
+    const tx2Key = 'tx_' + (Date.now()+1) + 'b';
+
+    updates['users/'+safeKey(username)+'/profitEarned'] = creditedBalance;
+    updates['users/'+safeKey(username)+'/deposits/'+depKey] = {
+      amount: addedAmount,
+      startDate: new Date().toISOString(),
+      daysRun: 0,
+      lastPaidDate: dateStr()
+    };
+    updates['users/'+safeKey(username)+'/transactions/'+tx1Key] = {
+      type:'Deposit', amount:addedAmount,
+      note:'Admin credited — Investment set to '+fmt(newInvested),
+      date: dateStr(), status:'completed'
+    };
+    updates['users/'+safeKey(username)+'/transactions/'+tx2Key] = {
+      type:'Profit', amount:instantProfit,
+      note:'10% instant profit on credited amount',
+      date: dateStr(), status:'completed'
+    };
+  }
+
+  await db.ref().update(updates);
+  closeEditModal();
+  toast('✅ User '+username+' updated');
+}
 function toggleLock(username, lock){ db.ref('users/'+safeKey(username)+'/locked').set(lock); toast(lock?'🔒 User locked':'🔓 User unlocked', lock?'#f87171':undefined); }
 function deleteUser(username){ confirmAction('Delete User?', 'Delete user "'+username+'"? This cannot be undone.').then(confirmed=>{ if(confirmed){ db.ref('users/'+safeKey(username)).remove(); toast('🗑️ User deleted','#f87171'); } }); }
 function openEditPhoneModal(username){ const u=allUsers[safeKey(username)]; if(!u) return; document.getElementById('edit-phone-username').value=username; document.getElementById('edit-phone-user-display').value=username; document.getElementById('edit-phone-value').value=u.phone||''; document.getElementById('edit-phone-modal').classList.add('open'); }
@@ -858,7 +904,7 @@ function openApproveDepModal(username, txKey, amount){ document.getElementById('
 function closeApproveDep(){ document.getElementById('approve-dep-modal').classList.remove('open'); }
 function confirmDeposit(){ const username=document.getElementById('adep-username').value; const txKey=document.getElementById('adep-txkey').value; const confirmedAmount=parseInt(document.getElementById('adep-amount-input').value)||0; if(confirmedAmount<=0){ toast('Enter a valid amount','#f87171'); return; } const profit=Math.floor(confirmedAmount*0.10); const updates={}; updates['users/'+safeKey(username)+'/transactions/'+txKey+'/status']='completed'; updates['users/'+safeKey(username)+'/transactions/'+txKey+'/note']='Confirmed ✅'; updates['users/'+safeKey(username)+'/transactions/'+txKey+'/amount']=confirmedAmount; updates['users/'+safeKey(username)+'/invested']=(allUsers[safeKey(username)]?.invested||0)+confirmedAmount; updates['users/'+safeKey(username)+'/activated']=true; updates['users/'+safeKey(username)+'/profitEarned']=(allUsers[safeKey(username)]?.profitEarned||0)+profit; const depKey='dep_'+Date.now(); updates['users/'+safeKey(username)+'/deposits/'+depKey]={amount:confirmedAmount,startDate:new Date().toISOString(),daysRun:0}; const txProfit='txp_inst_'+Date.now(); updates['users/'+safeKey(username)+'/transactions/'+txProfit]={type:'Profit',amount:profit,note:'10% instant profit on deposit',date:dateStr()}; db.ref().update(updates); payReferralBonuses(username, confirmedAmount); closeApproveDep(); toast('✅ Deposit confirmed for '+username+' — +'+fmt(confirmedAmount)+' + '+fmt(profit)+' instant profit'); }
 function rejectDeposit(username, txKey){ confirmAction('Reject Deposit?', 'Reject deposit for '+username+'? This will remove the pending transaction.').then(confirmed=>{ if(confirmed){ db.ref('users/'+safeKey(username)+'/transactions/'+txKey).remove(); toast('❌ Deposit rejected for '+username,'#f87171'); } }); }
-function payReferralBonuses(depositorUsername, amount){ const depositor=allUsers[safeKey(depositorUsername)]; if(!depositor||!depositor.referredBy) return; const pcts=[(allSettings.refL1||10)/100,(allSettings.refL2||3)/100,(allSettings.refL3||1)/100]; let uplineUsername=depositor.referredBy; for(let i=0;i<3;i++){ if(!uplineUsername) break; const upline=allUsers[safeKey(uplineUsername)]; if(!upline) break; const bonus=Math.floor(amount*pcts[i]); if(bonus<=0){ uplineUsername=upline.referredBy||null; continue; } const txKey='tx_'+Date.now()+'_ref'+i; const updates={}; updates['users/'+safeKey(uplineUsername)+'/balance']=(upline.balance||0)+bonus; updates['users/'+safeKey(uplineUsername)+'/refEarned']=(upline.refEarned||0)+bonus; updates['users/'+safeKey(uplineUsername)+'/transactions/'+txKey]={type:'Referral',amount:bonus,note:'Level '+(i+1)+' bonus from '+depositorUsername,date:dateStr()}; if(upline.referrals && upline.referrals[safeKey(depositorUsername)]){ updates['users/'+safeKey(uplineUsername)+'/referrals/'+safeKey(depositorUsername)+'/invested']=(upline.referrals[safeKey(depositorUsername)].invested||0)+amount; } db.ref().update(updates); uplineUsername=upline.referredBy||null; } }
+function payReferralBonuses(depositorUsername, amount){ const depositor=allUsers[safeKey(depositorUsername)]; if(!depositor||!depositor.referredBy) return; const pcts=[(allSettings.refL1||10)/100,(allSettings.refL2||3)/100,(allSettings.refL3||1)/100]; let uplineUsername=depositor.referredBy; for(let i=0;i<3;i++){ if(!uplineUsername) break; const upline=allUsers[safeKey(uplineUsername)]; if(!upline) break; const bonus=Math.floor(amount*pcts[i]); if(bonus<=0){ uplineUsername=upline.referredBy||null; continue; } const txKey='tx_'+Date.now()+'_ref'+i; const updates={}; updates['users/'+safeKey(uplineUsername)+'/profitEarned']=(upline.profitEarned||0)+bonus; updates['users/'+safeKey(uplineUsername)+'/refEarned']=(upline.refEarned||0)+bonus; updates['users/'+safeKey(uplineUsername)+'/transactions/'+txKey]={type:'Referral',amount:bonus,note:'Level '+(i+1)+' bonus from '+depositorUsername,date:dateStr()}; if(upline.referrals && upline.referrals[safeKey(depositorUsername)]){ updates['users/'+safeKey(uplineUsername)+'/referrals/'+safeKey(depositorUsername)+'/invested']=(upline.referrals[safeKey(depositorUsername)].invested||0)+amount; } db.ref().update(updates); uplineUsername=upline.referredBy||null; } }
 
 function filterTx(type){ txFilter=type; ['all','deposit','withdrawal','failed'].forEach(t=>{ const b=document.getElementById('tf-'+t); if(b)b.style.opacity=t===type?'1':'0.5'; }); renderTransactions(); }
 function renderTransactions(){ const tbody=document.getElementById('tx-table-body'); const countEl=document.getElementById('tx-count'); if(!tbody) return; const allTxs=[]; Object.values(allUsers).forEach(u=>{ if(!u.transactions) return; Object.values(u.transactions).forEach(tx=>{ if(tx.type==='Deposit'||tx.type==='Withdrawal') allTxs.push({...tx,username:u.username}); }); }); allTxs.sort((a,b)=>(b.date||'').localeCompare(a.date||'')); let filtered=allTxs; if(txFilter==='deposit') filtered=allTxs.filter(t=>t.type==='Deposit'); else if(txFilter==='withdrawal') filtered=allTxs.filter(t=>t.type==='Withdrawal'); else if(txFilter==='failed') filtered=allTxs.filter(t=>t.status==='failed'); if(countEl) countEl.textContent=filtered.length+' transactions'; if(!filtered.length){ tbody.innerHTML='<tr class="empty-row"><td colspan="6">No transactions found</td></tr>'; return; } tbody.innerHTML=filtered.map(tx=>{ const isDeposit=tx.type==='Deposit'; const sc=tx.status==='approved'?'var(--accent3)':tx.status==='failed'?'var(--warn)':'var(--gold)'; const st=tx.status==='approved'?'✅ Confirmed':tx.status==='failed'?'❌ Failed':'⏳ Pending'; const ac=isDeposit?'var(--accent3)':'var(--warn)'; return '<tr><td class="mono" style="font-size:11px;">'+(tx.date||'—')+'</td><td><strong>'+(tx.username||'—')+'</strong></td><td><span class="badge '+(isDeposit?'badge-approved':'badge-pending')+'">'+tx.type+'</span></td><td class="mono" style="color:'+ac+';">'+fmt(Math.abs(tx.amount||0))+'</td><td style="font-size:11px;color:var(--muted);max-width:200px;">'+(tx.note||'—')+'</td><td><span style="font-size:11px;font-weight:700;color:'+sc+';">'+st+'</span></td></tr>'; }).join(''); }
