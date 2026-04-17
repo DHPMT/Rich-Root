@@ -431,7 +431,6 @@ input[type="password"]{padding-right:46px;}
         <div class="stats-grid">
           <div class="stat-box"><div class="stat-label">INVESTMENT</div><div class="stat-value dep" id="stat-invested">UGX 0</div></div>
           <div class="stat-box"><div class="stat-label">CASOUT</div><div class="stat-value with" id="stat-withdrawn">UGX 0</div></div>
-          <div class="stat-box"><div class="stat-label">TOTAL EARNED</div><div class="stat-value total" id="stat-total-earned">UGX 0</div></div>
         </div>
       </div>
     </div>
@@ -443,11 +442,11 @@ input[type="password"]{padding-right:46px;}
       </div>
     </div>
     <div class="section">
-      <div class="action-grid">
-        <button class="action-btn btn-deposit" onclick="switchTab('deposit')"><span class="btn-icon">💳</span>Top-up</button>
-        <button class="action-btn btn-withdraw" onclick="switchTab('withdraw')"><span class="btn-icon">💸</span>Withdrawal</button>
-        <button class="action-btn btn-reinvest" onclick="switchTab('reinvest')"><span class="btn-icon">🔄</span>Re-Invest</button>
-        <button class="action-btn btn-transactions" onclick="switchTab('history')"><span class="btn-icon">📋</span>Transactions</button>
+      <div class="action-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:15px;margin:20px 0;">
+        <button class="action-btn" style="background:#22c55e;border:none;color:white;padding:16px;border-radius:12px;font-weight:600;font-size:16px;" onclick="switchTab('deposit')"><span class="btn-icon">💳</span>Top-up</button>
+        <button class="action-btn" style="background:#a855f7;border:none;color:white;padding:16px;border-radius:12px;font-weight:600;font-size:16px;" onclick="switchTab('reinvest')"><span class="btn-icon">🔄</span>Re-Invest</button>
+        <button class="action-btn" style="background:#ef4444;border:none;color:white;padding:16px;border-radius:12px;font-weight:600;font-size:16px;" onclick="switchTab('withdraw')"><span class="btn-icon">💸</span>Withdraw</button>
+        <button class="action-btn" style="background:#0ea5e9;border:none;color:white;padding:16px;border-radius:12px;font-weight:600;font-size:16px;" onclick="switchTab('history')"><span class="btn-icon">📋</span>Transactions</button>
       </div>
     </div>
     <div class="section">
@@ -896,7 +895,6 @@ function updateBalanceUI(){
   document.getElementById('stat-invested').textContent=fmt(invested);
   document.getElementById('stat-balance').textContent=fmt(Math.max(0, availableBalance));
   document.getElementById('stat-withdrawn').textContent=fmt(withdrawn);
-  document.getElementById('stat-total-earned').textContent=fmt(totalEarned);
   const el=document.getElementById('reinvest-balance-display'); if(el)el.textContent=fmt(Math.max(0, availableBalance));
 }
 
@@ -1373,6 +1371,7 @@ async function creditReferralBonuses(depositorUsername, amount){
         const rTxKey = 'tx_'+Date.now()+'_ref'+i+'_'+Math.random().toString(36).slice(2,6);
         const ru = {};
         ru['users/'+safeKey(upline)+'/profitEarned'] = (uplineData.profitEarned||0)+bonus;
+        ru['users/'+safeKey(upline)+'/refEarned'] = (uplineData.refEarned||0)+bonus;  // Update refEarned
         ru['users/'+safeKey(upline)+'/transactions/'+rTxKey] = {type:'Referral',amount:bonus,note:'Level '+(i+1)+' bonus from '+depositorUsername,date:dateStr()};
         if(uplineData.referrals&&uplineData.referrals[safeKey(depositorUsername)]){
           ru['users/'+safeKey(upline)+'/referrals/'+safeKey(depositorUsername)+'/invested']=(uplineData.referrals[safeKey(depositorUsername)].invested||0)+amount;
@@ -1447,12 +1446,15 @@ async function doWithdraw(){
       db.ref().update(wUpdates);
     } catch(err){
       // MarzPay failed - refund the deducted amount back to profitEarned
-      const refundUpdates = {};
-      refundUpdates['users/'+safeKey(currentUsername)+'/profitEarned'] = (currentUser.profitEarned||0) + amount;  // Refund back
-      refundUpdates['users/'+safeKey(currentUsername)+'/transactions/'+txKey+'/status'] = 'failed';
-      const failReason = err.message || 'Unknown error';
-      refundUpdates['users/'+safeKey(currentUsername)+'/transactions/'+txKey+'/note'] = 'Withdrawal failed ❌ — funds refunded to your profits. Reason: '+failReason;
-      db.ref().update(refundUpdates);
+      // Need to get current profitEarned from database since currentUser is stale
+      db.ref('users/'+safeKey(currentUsername)+'/profitEarned').once('value', snap => {
+        const curProfit = snap.val() || 0;
+        db.ref().update({
+          ['users/'+safeKey(currentUsername)+'/profitEarned']: curProfit + amount,  // Refund the deducted amount
+          ['users/'+safeKey(currentUsername)+'/transactions/'+txKey+'/status']: 'failed',
+          ['users/'+safeKey(currentUsername)+'/transactions/'+txKey+'/note']: 'Withdrawal failed ❌ — funds refunded to your balance. Reason: '+err.message
+        });
+      });
       // Send admin notification about failed withdrawal
       const notifKey = 'notif_wd_fail_'+Date.now();
       db.ref('adminNotifications/'+notifKey).set({
