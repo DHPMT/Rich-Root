@@ -430,7 +430,6 @@ input[type="password"]{padding-right:46px;}
         </div>
         <div class="stats-grid">
           <div class="stat-box"><div class="stat-label">INVESTMENT</div><div class="stat-value dep" id="stat-invested">UGX 0</div></div>
-          <div class="stat-box"><div class="stat-label">PROFITS</div><div class="stat-value earn" id="stat-profits">UGX 0</div></div>
           <div class="stat-box"><div class="stat-label">CASOUT</div><div class="stat-value with" id="stat-withdrawn">UGX 0</div></div>
           <div class="stat-box"><div class="stat-label">TOTAL EARNED</div><div class="stat-value total" id="stat-total-earned">UGX 0</div></div>
         </div>
@@ -897,7 +896,6 @@ function updateBalanceUI(){
   document.getElementById('stat-invested').textContent=fmt(invested);
   document.getElementById('stat-balance').textContent=fmt(Math.max(0, availableBalance));
   document.getElementById('stat-withdrawn').textContent=fmt(withdrawn);
-  document.getElementById('stat-profits').textContent=fmt(profitEarned + refEarned);
   document.getElementById('stat-total-earned').textContent=fmt(totalEarned);
   const el=document.getElementById('reinvest-balance-display'); if(el)el.textContent=fmt(Math.max(0, availableBalance));
 }
