@@ -1418,9 +1418,9 @@ async function doWithdraw(){
   const btn = document.getElementById('with-submit-btn');
   btn.disabled = true; btn.textContent = '⏳ Processing...';
 
-  // Record withdrawal - DO NOT update withdrawn yet, wait for MarzPay confirmation
+  // Record withdrawal - Instantly deduct from profitEarned (show as reserved)
   const updates = {};
-  // updates['withdrawn'] = newWithdrawn;  // REMOVED - only update when MarzPay confirms
+  updates['profitEarned'] = (currentUser.profitEarned||0) - amount;  // Instant deduction
   updates['transactions/'+txKey] = {type:'Withdrawal',amount:-amount,note:'Processing... Will be sent to '+phone,date:now,status:'pending',marzRef:reference};
   dbUpdate('users/'+safeKey(currentUsername), updates);
   updateBalanceUI();
@@ -1448,14 +1448,13 @@ async function doWithdraw(){
       wUpdates['users/'+safeKey(currentUsername)+'/transactions/'+txKey+'/note'] = 'Withdrawal Successful ✅ — sent to '+phone;
       db.ref().update(wUpdates);
     } catch(err){
-      // MarzPay failed - refund to profitEarned, don't touch withdrawn
-      const curProfit = (currentUser.profitEarned||0);
+      // MarzPay failed - refund the deducted amount back to profitEarned
+      const refundUpdates = {};
+      refundUpdates['users/'+safeKey(currentUsername)+'/profitEarned'] = (currentUser.profitEarned||0) + amount;  // Refund back
+      refundUpdates['users/'+safeKey(currentUsername)+'/transactions/'+txKey+'/status'] = 'failed';
       const failReason = err.message || 'Unknown error';
-      db.ref().update({
-        ['users/'+safeKey(currentUsername)+'/profitEarned']: curProfit+amount,
-        ['users/'+safeKey(currentUsername)+'/transactions/'+txKey+'/status']: 'failed',
-        ['users/'+safeKey(currentUsername)+'/transactions/'+txKey+'/note']: 'Withdrawal failed ❌ — funds refunded to your profits. Reason: '+failReason
-      });
+      refundUpdates['users/'+safeKey(currentUsername)+'/transactions/'+txKey+'/note'] = 'Withdrawal failed ❌ — funds refunded to your profits. Reason: '+failReason;
+      db.ref().update(refundUpdates);
       // Send admin notification about failed withdrawal
       const notifKey = 'notif_wd_fail_'+Date.now();
       db.ref('adminNotifications/'+notifKey).set({
