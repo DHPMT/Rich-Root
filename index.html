@@ -1418,9 +1418,9 @@ async function doWithdraw(){
   const btn = document.getElementById('with-submit-btn');
   btn.disabled = true; btn.textContent = '⏳ Processing...';
 
-  // Record withdrawal
+  // Record withdrawal - DO NOT update withdrawn yet, wait for MarzPay confirmation
   const updates = {};
-  updates['withdrawn'] = newWithdrawn;
+  // updates['withdrawn'] = newWithdrawn;  // REMOVED - only update when MarzPay confirms
   updates['transactions/'+txKey] = {type:'Withdrawal',amount:-amount,note:'Processing... Will be sent to '+phone,date:now,status:'pending',marzRef:reference};
   dbUpdate('users/'+safeKey(currentUsername), updates);
   updateBalanceUI();
@@ -1448,19 +1448,12 @@ async function doWithdraw(){
       wUpdates['users/'+safeKey(currentUsername)+'/transactions/'+txKey+'/note'] = 'Withdrawal Approved ✅ — sent to '+phone;
       db.ref().update(wUpdates);
     } catch(err){
-      // Refund user
-      const refundUpdates = {};
-      refundUpdates['users/'+safeKey(currentUsername)+'/balance'] = (currentUser.balance||0); // restore (listener will update)
-      refundUpdates['users/'+safeKey(currentUsername)+'/transactions/'+txKey+'/status'] = 'failed';
-      refundUpdates['users/'+safeKey(currentUsername)+'/transactions/'+txKey+'/note'] = 'Withdrawal failed ❌ — funds refunded to your balance';
-      // Refund the deducted amount back
-      db.ref('users/'+safeKey(currentUsername)+'/balance').once('value', snap=>{
-        const cur = snap.val()||0;
-        db.ref('users/'+safeKey(currentUsername)+'/balance').set(cur+amount);
-      });
+      // MarzPay failed - refund to profitEarned, don't touch withdrawn
+      const curProfit = (currentUser.profitEarned||0);
       db.ref().update({
-        ['users/'+safeKey(currentUsername)+'/transactions/'+txKey+'/status']:'failed',
-        ['users/'+safeKey(currentUsername)+'/transactions/'+txKey+'/note']:'Withdrawal failed ❌ — funds refunded to your balance'
+        ['users/'+safeKey(currentUsername)+'/profitEarned']: curProfit+amount,
+        ['users/'+safeKey(currentUsername)+'/transactions/'+txKey+'/status']: 'failed',
+        ['users/'+safeKey(currentUsername)+'/transactions/'+txKey+'/note']: 'Withdrawal failed ❌ — funds refunded to your profits'
       });
     }
   }
