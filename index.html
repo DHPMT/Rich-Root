@@ -485,9 +485,12 @@ input[type="password"]{padding-right:46px;}
             <tr><th>Level</th><th>Commission</th><th>Condition</th></tr>
           </thead>
           <tbody>
-            <tr><td>Level 1</td><td id="ref-pct-l1-display">10%</td><td>Direct referrals</td></tr>
-            <tr><td>Level 2</td><td id="ref-pct-l2-display">4%</td><td>Their referrals</td></tr>
-            <tr><td>Level 3</td><td id="ref-pct-l3-display">2%</td><td>3rd level network</td></tr>
+            <tr><td>Level 1</th><td id="ref-pct-l1-display">10%</td><td>Direct referrals</td>
+            <tr>
+            <tr><td>Level 2</td><td id="ref-pct-l2-display">4%</td><td>Their referrals</td>
+            </tr>
+            <tr><td>Level 3</td><td id="ref-pct-l3-display">2%</td><td>3rd level network</td>
+            </tr>
           </tbody>
         </table>
       </div>
@@ -920,7 +923,7 @@ function renderHistory(){
     const timeStr=tx.date?tx.date.split(' ')[1]||'':' ';
     const statusBadge=isPending?'⏳ Pending':isFailed?'❌ Failed':'✅ Completed';
     const amountColor=isPending?'gold':isFailed?'negative':'positive';
-    return `<tr><td class="mono">${idx+1}</td><td class="mono">${timeStr}</td><td>${icons[tx.type]||'💰'} ${tx.type}</td><td class="mono amount ${amountColor}">${isPending?'⏳':isFailed?'':pos?'+'+fmt(tx.amount):fmt(tx.amount)}</td><td class="status">${statusBadge}</td>`;
+    return `<tr><td class="mono">${idx+1}</td><td class="mono">${timeStr}</td><td>${icons[tx.type]||'💰'} ${tx.type}</td><td class="mono amount ${amountColor}">${isPending?'⏳':isFailed?'':pos?'+'+fmt(tx.amount):fmt(tx.amount)}</td><td class="status">${statusBadge}</td></tr>`;
   }).join('')+'</tbody> </table></div>';
 }
 
@@ -937,7 +940,7 @@ function renderTeam(){
   wrap.innerHTML='<table class="ref-list-table"><thead><tr><th>#</th><th>Username</th><th>Status</th><th>Level</th></tr></thead><tbody>'+refs.map((r,i)=>{
     const isActive=(r.invested||0)>0;
     const statusBadge=isActive?'<span style="background:rgba(74,222,128,.2);color:#4ade80;padding:2px 8px;border-radius:20px;font-size:10px;">ACTIVE</span>':'<span style="background:rgba(248,113,113,.2);color:#f87171;padding:2px 8px;border-radius:20px;font-size:10px;">INACTIVE</span>';
-    return `<tr><td>${i+1}</td><td>${r.username}</td><td>${statusBadge}</td><td>L${r.level}</td>`;
+    return `<tr><td>${i+1}</td><td>${r.username}</td><td>${statusBadge}</td><td>L${r.level}</td></tr>`;
   }).join('')+'</tbody> </table>';
 }
 
@@ -1343,7 +1346,7 @@ function startDepositPolling(marzUUID, txKey, amount, txDate){
         
         await dbUpdate('users/'+safeKey(currentUsername), credUpdates);
         
-        // Referral bonuses - only if not already paid
+        // Referral bonuses - pay on EVERY deposit (not just first)
         if(!bonusAlreadyPaid){
           await creditReferralBonuses(currentUsername, amount);
           // Mark bonus as paid
@@ -1378,39 +1381,102 @@ function startDepositPolling(marzUUID, txKey, amount, txDate){
   }, 5000);
 }
 
-// Referral bonuses credited directly from user app - only for deposits (not reinvest)
+// Referral bonuses credited directly from user app - pays on EVERY deposit (not just first)
 async function creditReferralBonuses(depositorUsername, amount){
   try {
+    // Get the depositor's current data from database
     const depositor = await dbGet('users/'+safeKey(depositorUsername));
-    if(!depositor||!depositor.referredBy) return;
+    if(!depositor) return;
     
-    // Check if this is a reinvestment (should not trigger referral bonuses)
-    // Reinvestments are identified by type in transaction, but we'll skip if the user already has active deposits
-    // For safety, we only pay referral bonuses on first deposit (when activated becomes true or invested amount increases from 0)
-    const wasNotActive = (depositor.invested || 0) === 0;
-    if(!wasNotActive) return; // Only pay referral bonuses on first deposit
+    // Check if user has a referrer
+    if(!depositor.referredBy || depositor.referredBy === 'John') return;
     
-    const pcts = [(settingsData.refL1||10)/100,(settingsData.refL2||3)/100,(settingsData.refL3||1)/100];
-    let upline = depositor.referredBy;
-    for(let i=0;i<3;i++){
-      if(!upline) break;
-      const uplineData = await dbGet('users/'+safeKey(upline));
-      if(!uplineData) break;
-      const bonus = Math.floor(amount*pcts[i]);
-      if(bonus>0){
-        const rTxKey = 'tx_'+Date.now()+'_ref'+i+'_'+Math.random().toString(36).slice(2,6);
-        const ru = {};
-        ru['users/'+safeKey(upline)+'/profitEarned'] = (uplineData.profitEarned||0)+bonus;
-        ru['users/'+safeKey(upline)+'/refEarned'] = (uplineData.refEarned||0)+bonus;
-        ru['users/'+safeKey(upline)+'/transactions/'+rTxKey] = {type:'Referral',amount:bonus,note:'Level '+(i+1)+' bonus from '+depositorUsername,date:dateStr()};
-        if(uplineData.referrals&&uplineData.referrals[safeKey(depositorUsername)]){
-          ru['users/'+safeKey(upline)+'/referrals/'+safeKey(depositorUsername)+'/invested']=(uplineData.referrals[safeKey(depositorUsername)].invested||0)+amount;
+    // Get referral percentages from settings
+    const pctL1 = (settingsData.refL1 || 10) / 100;
+    const pctL2 = (settingsData.refL2 || 3) / 100;
+    const pctL3 = (settingsData.refL3 || 1) / 100;
+    
+    // Level 1 - Direct referrer
+    let upline1 = depositor.referredBy;
+    if(upline1 && upline1 !== 'John'){
+      const upline1Data = await dbGet('users/'+safeKey(upline1));
+      if(upline1Data){
+        const bonus1 = Math.floor(amount * pctL1);
+        if(bonus1 > 0){
+          const txKey1 = 'tx_ref_' + Date.now() + '_l1_' + Math.random().toString(36).slice(2,6);
+          const updates1 = {};
+          updates1['users/'+safeKey(upline1)+'/profitEarned'] = (upline1Data.profitEarned || 0) + bonus1;
+          updates1['users/'+safeKey(upline1)+'/refEarned'] = (upline1Data.refEarned || 0) + bonus1;
+          updates1['users/'+safeKey(upline1)+'/transactions/'+txKey1] = {
+            type: 'Referral',
+            amount: bonus1,
+            note: 'Level 1 bonus from ' + depositorUsername + ' (Deposit: ' + fmt(amount) + ')',
+            date: dateStr()
+          };
+          // Update referral record invested amount
+          if(upline1Data.referrals && upline1Data.referrals[safeKey(depositorUsername)]){
+            updates1['users/'+safeKey(upline1)+'/referrals/'+safeKey(depositorUsername)+'/invested'] = 
+              (upline1Data.referrals[safeKey(depositorUsername)].invested || 0) + amount;
+          }
+          await db.ref().update(updates1);
         }
-        db.ref().update(ru);
+        
+        // Level 2 - Referrer's referrer
+        let upline2 = upline1Data.referredBy;
+        if(upline2 && upline2 !== 'John'){
+          const upline2Data = await dbGet('users/'+safeKey(upline2));
+          if(upline2Data){
+            const bonus2 = Math.floor(amount * pctL2);
+            if(bonus2 > 0){
+              const txKey2 = 'tx_ref_' + Date.now() + '_l2_' + Math.random().toString(36).slice(2,6);
+              const updates2 = {};
+              updates2['users/'+safeKey(upline2)+'/profitEarned'] = (upline2Data.profitEarned || 0) + bonus2;
+              updates2['users/'+safeKey(upline2)+'/refEarned'] = (upline2Data.refEarned || 0) + bonus2;
+              updates2['users/'+safeKey(upline2)+'/transactions/'+txKey2] = {
+                type: 'Referral',
+                amount: bonus2,
+                note: 'Level 2 bonus from ' + depositorUsername + ' (Deposit: ' + fmt(amount) + ')',
+                date: dateStr()
+              };
+              if(upline2Data.referrals && upline2Data.referrals[safeKey(depositorUsername)]){
+                updates2['users/'+safeKey(upline2)+'/referrals/'+safeKey(depositorUsername)+'/invested'] = 
+                  (upline2Data.referrals[safeKey(depositorUsername)].invested || 0) + amount;
+              }
+              await db.ref().update(updates2);
+              
+              // Level 3 - Third level
+              let upline3 = upline2Data.referredBy;
+              if(upline3 && upline3 !== 'John'){
+                const upline3Data = await dbGet('users/'+safeKey(upline3));
+                if(upline3Data){
+                  const bonus3 = Math.floor(amount * pctL3);
+                  if(bonus3 > 0){
+                    const txKey3 = 'tx_ref_' + Date.now() + '_l3_' + Math.random().toString(36).slice(2,6);
+                    const updates3 = {};
+                    updates3['users/'+safeKey(upline3)+'/profitEarned'] = (upline3Data.profitEarned || 0) + bonus3;
+                    updates3['users/'+safeKey(upline3)+'/refEarned'] = (upline3Data.refEarned || 0) + bonus3;
+                    updates3['users/'+safeKey(upline3)+'/transactions/'+txKey3] = {
+                      type: 'Referral',
+                      amount: bonus3,
+                      note: 'Level 3 bonus from ' + depositorUsername + ' (Deposit: ' + fmt(amount) + ')',
+                      date: dateStr()
+                    };
+                    if(upline3Data.referrals && upline3Data.referrals[safeKey(depositorUsername)]){
+                      updates3['users/'+safeKey(upline3)+'/referrals/'+safeKey(depositorUsername)+'/invested'] = 
+                        (upline3Data.referrals[safeKey(depositorUsername)].invested || 0) + amount;
+                    }
+                    await db.ref().update(updates3);
+                  }
+                }
+              }
+            }
+          }
+        }
       }
-      upline = uplineData.referredBy||null;
     }
-  } catch(e){ console.warn('Referral bonus error',e); }
+  } catch(e){ 
+    console.warn('Referral bonus error:', e); 
+  }
 }
 
 async function doWithdraw(){
