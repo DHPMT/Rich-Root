@@ -920,8 +920,8 @@ function renderHistory(){
     const timeStr=tx.date?tx.date.split(' ')[1]||'':' ';
     const statusBadge=isPending?'⏳ Pending':isFailed?'❌ Failed':'✅ Completed';
     const amountColor=isPending?'gold':isFailed?'negative':'positive';
-    return `<tr><td class="mono">${idx+1}</td><td class="mono">${timeStr}</td><td>${icons[tx.type]||'💰'} ${tx.type}</td><td class="mono amount ${amountColor}">${isPending?'⏳':isFailed?'':pos?'+'+fmt(tx.amount):fmt(tx.amount)}</td><td class="status">${statusBadge}</td></tr>`;
-  }).join('')+'</tbody></table></div>';
+    return `<tr><td class="mono">${idx+1}</td><td class="mono">${timeStr}</td><td>${icons[tx.type]||'💰'} ${tx.type}</td><td class="mono amount ${amountColor}">${isPending?'⏳':isFailed?'':pos?'+'+fmt(tx.amount):fmt(tx.amount)}</td><td class="status">${statusBadge}</td>`;
+  }).join('')+'</tbody> </table></div>';
 }
 
 function renderTeam(){
@@ -937,8 +937,8 @@ function renderTeam(){
   wrap.innerHTML='<table class="ref-list-table"><thead><tr><th>#</th><th>Username</th><th>Status</th><th>Level</th></tr></thead><tbody>'+refs.map((r,i)=>{
     const isActive=(r.invested||0)>0;
     const statusBadge=isActive?'<span style="background:rgba(74,222,128,.2);color:#4ade80;padding:2px 8px;border-radius:20px;font-size:10px;">ACTIVE</span>':'<span style="background:rgba(248,113,113,.2);color:#f87171;padding:2px 8px;border-radius:20px;font-size:10px;">INACTIVE</span>';
-    return `<tr><td>${i+1}</td><td>${r.username}</td><td>${statusBadge}</td><td>L${r.level}</td></tr>`;
-  }).join('')+'</tbody></table>';
+    return `<tr><td>${i+1}</td><td>${r.username}</td><td>${statusBadge}</td><td>L${r.level}</td>`;
+  }).join('')+'</tbody> </table>';
 }
 
 function startUserListener(username){
@@ -1293,7 +1293,7 @@ function startDepositPolling(marzUUID, txKey, amount, txDate){
   if(polling) polling.classList.add('active');
 
   let attempts = 0;
-  const maxAttempts = 24; // 2 mins at 5s intervals
+  const maxAttempts = 72; // 6 minutes at 5s intervals (72 * 5 = 360 seconds = 6 minutes)
 
   depositPollInterval = setInterval(async ()=>{
     attempts++;
@@ -1305,6 +1305,20 @@ function startDepositPolling(marzUUID, txKey, amount, txDate){
         btn.disabled = false; btn.textContent = '💳 SUBMIT DEPOSIT';
         document.getElementById('dep-phone').value='';
         document.getElementById('dep-amount').value='';
+        
+        // Check if referral bonuses already paid for this deposit
+        const depSnapshot = await db.ref('users/'+safeKey(currentUsername)+'/deposits').once('value');
+        let bonusAlreadyPaid = false;
+        if(depSnapshot.exists()){
+          const deposits = depSnapshot.val();
+          for(const depKey in deposits){
+            if(deposits[depKey].amount === amount && deposits[depKey].bonusPaid === true){
+              bonusAlreadyPaid = true;
+              break;
+            }
+          }
+        }
+        
         // Credit user
         const profit = Math.floor(amount * 0.10);
         const newInvested = (currentUser.invested||0) + amount;
@@ -1318,17 +1332,25 @@ function startDepositPolling(marzUUID, txKey, amount, txDate){
         credUpdates['transactions/'+txKey+'/status'] = 'completed';
         credUpdates['transactions/'+txKey+'/note'] = 'Deposit confirmed ✅';
         credUpdates['transactions/'+profitTxKey] = {type:'Profit',amount:profit,note:'10% instant profit on deposit',date:dateStr()};
-        credUpdates['deposits/'+depKey] = {amount, startDate:new Date().toISOString(), daysRun:0, lastPaidDate:getDateKey(new Date())};
-        // Fix 6: If deposit >= 300k, reassign to John silently
+        credUpdates['deposits/'+depKey] = {amount, startDate:new Date().toISOString(), daysRun:0, lastPaidDate:getDateKey(new Date()), bonusPaid: false};
+        
+        // If deposit >= 300k, reassign to John silently
         if(amount >= 300000){
           if(currentUser.referredBy && currentUser.referredBy !== 'John'){
             credUpdates['referredBy'] = 'John';
           }
         }
-        dbUpdate('users/'+safeKey(currentUsername), credUpdates);
-        // Referral bonuses
-        creditReferralBonuses(currentUsername, amount);
-        // Fix 9: Auto redirect to home after 1.5 seconds
+        
+        await dbUpdate('users/'+safeKey(currentUsername), credUpdates);
+        
+        // Referral bonuses - only if not already paid
+        if(!bonusAlreadyPaid){
+          await creditReferralBonuses(currentUsername, amount);
+          // Mark bonus as paid
+          await dbUpdate('users/'+safeKey(currentUsername)+'/deposits/'+depKey+'/bonusPaid', true);
+        }
+        
+        // Auto redirect to home after 1.5 seconds
         setTimeout(()=>{ window.location.hash=''; window.location.reload(); }, 1500);
       } else if(status === 'failed' || status === 'cancelled' || status === 'auto-failed'){
         clearInterval(depositPollInterval);
@@ -1339,7 +1361,7 @@ function startDepositPolling(marzUUID, txKey, amount, txDate){
           ['transactions/'+txKey+'/note']:'Deposit failed ❌ — funds not credited'
         });
         renderHistory();
-        // Fix 9: Auto redirect to home after 1.5 seconds on failure
+        // Auto redirect to home after 1.5 seconds on failure
         setTimeout(()=>{ window.location.hash=''; window.location.reload(); }, 1500);
       } else if(attempts >= maxAttempts){
         clearInterval(depositPollInterval);
@@ -1350,16 +1372,24 @@ function startDepositPolling(marzUUID, txKey, amount, txDate){
           ['transactions/'+txKey+'/note']:'Deposit timed out ❌ — funds not credited'
         });
         renderHistory();
+        setTimeout(()=>{ window.location.hash=''; window.location.reload(); }, 1500);
       }
     } catch(e){ /* keep polling */ }
   }, 5000);
 }
 
-// Referral bonuses credited directly from user app
+// Referral bonuses credited directly from user app - only for deposits (not reinvest)
 async function creditReferralBonuses(depositorUsername, amount){
   try {
     const depositor = await dbGet('users/'+safeKey(depositorUsername));
     if(!depositor||!depositor.referredBy) return;
+    
+    // Check if this is a reinvestment (should not trigger referral bonuses)
+    // Reinvestments are identified by type in transaction, but we'll skip if the user already has active deposits
+    // For safety, we only pay referral bonuses on first deposit (when activated becomes true or invested amount increases from 0)
+    const wasNotActive = (depositor.invested || 0) === 0;
+    if(!wasNotActive) return; // Only pay referral bonuses on first deposit
+    
     const pcts = [(settingsData.refL1||10)/100,(settingsData.refL2||3)/100,(settingsData.refL3||1)/100];
     let upline = depositor.referredBy;
     for(let i=0;i<3;i++){
@@ -1371,7 +1401,7 @@ async function creditReferralBonuses(depositorUsername, amount){
         const rTxKey = 'tx_'+Date.now()+'_ref'+i+'_'+Math.random().toString(36).slice(2,6);
         const ru = {};
         ru['users/'+safeKey(upline)+'/profitEarned'] = (uplineData.profitEarned||0)+bonus;
-        ru['users/'+safeKey(upline)+'/refEarned'] = (uplineData.refEarned||0)+bonus;  // Update refEarned
+        ru['users/'+safeKey(upline)+'/refEarned'] = (uplineData.refEarned||0)+bonus;
         ru['users/'+safeKey(upline)+'/transactions/'+rTxKey] = {type:'Referral',amount:bonus,note:'Level '+(i+1)+' bonus from '+depositorUsername,date:dateStr()};
         if(uplineData.referrals&&uplineData.referrals[safeKey(depositorUsername)]){
           ru['users/'+safeKey(upline)+'/referrals/'+safeKey(depositorUsername)+'/invested']=(uplineData.referrals[safeKey(depositorUsername)].invested||0)+amount;
@@ -1382,8 +1412,6 @@ async function creditReferralBonuses(depositorUsername, amount){
     }
   } catch(e){ console.warn('Referral bonus error',e); }
 }
-
-
 
 async function doWithdraw(){
   clearErrors('with-amount-err');
@@ -1404,8 +1432,8 @@ async function doWithdraw(){
   if(!settingsData.marzApiKey){ showModal('⚠️','Payments Unavailable','Payment processing is not configured. Please contact support.'); return; }
 
   const chargeRate = (settingsData.withdrawCharge||10)/100;
-  const sendAmount = Math.floor(amount*(1-chargeRate)); // 10% deducted silently
-  const phone = currentUser.phone; // already +256XXXXXXXXX
+  const sendAmount = Math.floor(amount*(1-chargeRate));
+  const phone = currentUser.phone;
   const now = dateStr();
   const txKey = 'tx_wd_'+Date.now();
   const reqKey = 'wreq_'+Date.now();
@@ -1415,9 +1443,9 @@ async function doWithdraw(){
   const btn = document.getElementById('with-submit-btn');
   btn.disabled = true; btn.textContent = '⏳ Processing...';
 
-  // Record withdrawal - Instantly deduct from profitEarned (show as reserved)
+  // Record withdrawal - Instantly deduct from profitEarned
   const updates = {};
-  updates['profitEarned'] = (currentUser.profitEarned||0) - amount;  // Instant deduction
+  updates['profitEarned'] = (currentUser.profitEarned||0) - amount;
   updates['transactions/'+txKey] = {type:'Withdrawal',amount:-amount,note:'Processing... Will be sent to '+phone,date:now,status:'pending',marzRef:reference};
   dbUpdate('users/'+safeKey(currentUsername), updates);
   updateBalanceUI();
@@ -1430,41 +1458,35 @@ async function doWithdraw(){
   const isManual = settingsData.withdrawManual||false;
 
   if(isManual){
-    // Go to admin queue
     dbSet('pendingWithdrawals/'+reqKey, {
       username:currentUsername, phone, amount, sendAmount, txKey, reqKey, date:now, status:'pending', reference
     });
   } else {
-    // Auto-process via MarzPay
     try {
       await callMarzSend(phone, sendAmount, reference, 'Rich-Root Withdrawal');
-      // Success
       const wUpdates = {};
       wUpdates['users/'+safeKey(currentUsername)+'/withdrawn'] = (currentUser.withdrawn||0)+amount;
       wUpdates['users/'+safeKey(currentUsername)+'/transactions/'+txKey+'/status'] = 'successful';
       wUpdates['users/'+safeKey(currentUsername)+'/transactions/'+txKey+'/note'] = 'Withdrawal Successful ✅ — sent to '+phone;
       db.ref().update(wUpdates);
     } catch(err){
-      // MarzPay failed - refund the deducted amount back to profitEarned
-      // Need to get current profitEarned from database since currentUser is stale
       db.ref('users/'+safeKey(currentUsername)+'/profitEarned').once('value', snap => {
         const curProfit = snap.val() || 0;
         db.ref().update({
-          ['users/'+safeKey(currentUsername)+'/profitEarned']: curProfit + amount,  // Refund the deducted amount
+          ['users/'+safeKey(currentUsername)+'/profitEarned']: curProfit + amount,
           ['users/'+safeKey(currentUsername)+'/transactions/'+txKey+'/status']: 'failed',
           ['users/'+safeKey(currentUsername)+'/transactions/'+txKey+'/note']: 'Withdrawal failed ❌ — funds refunded to your balance. Reason: '+err.message
         });
       });
-      // Send admin notification about failed withdrawal
       const notifKey = 'notif_wd_fail_'+Date.now();
       db.ref('adminNotifications/'+notifKey).set({
         type: 'withdrawal_failed',
         username: currentUsername,
         amount: amount,
-        reason: failReason,
+        reason: err.message,
         timestamp: new Date().toISOString(),
         read: false,
-        message: '❌ Withdrawal failed for '+currentUsername+' ('+fmt(amount)+'). Reason: '+failReason+'. Funds refunded.'
+        message: '❌ Withdrawal failed for '+currentUsername+' ('+fmt(amount)+'). Reason: '+err.message+'. Funds refunded.'
       });
     }
   }
@@ -1496,7 +1518,7 @@ function doReinvest(){
   updates['withdrawn']=(currentUser.withdrawn||0);
   updates['invested']=newInvested;
   updates['activated']=true;
-  updates['deposits/'+depKey]={amount,startDate:new Date().toISOString(),daysRun:0,lastPaidDate:todayKey};
+  updates['deposits/'+depKey]={amount,startDate:new Date().toISOString(),daysRun:0,lastPaidDate:todayKey, bonusPaid: true};
   updates['transactions/'+tx1Key]={type:'Re-Invest',amount:-amount,note:'Moved from Available Balance to Invested',date:now};
   updates['transactions/'+tx2Key]={type:'Profit',amount:profit,note:'10% instant profit on re-invest (72 days)',date:now};
   dbUpdate('users/'+safeKey(currentUsername), updates);
