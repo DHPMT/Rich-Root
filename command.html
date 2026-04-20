@@ -738,7 +738,7 @@ function renderUsersTable(){
   const filtered=searchFilter?users.filter(u=>u.username&&u.username.toLowerCase().includes(searchFilter.toLowerCase())):users;
   const tbody=document.getElementById('users-table-body');
   if(!filtered.length){ tbody.innerHTML='<tr class="empty-row"><td colspan="9">No users found<\/tr>'; return; }
-  tbody.innerHTML=filtered.map(u=>{ const sk=safeKey(u.username||''); const available=(u.profitEarned||0)-(u.withdrawn||0); const availColor=available>0?'var(--accent3)':'var(--warn)'; return '<tr><td><strong>'+ (u.username||'—') +'</strong></td><td class="mono">'+ (u.phone||'—') +'</strong></td><td><div class="pw-cell" id="pwcell_'+sk+'"><span class="pw-val" onclick="editPw(\''+sk+'\')">'+ (u.password||'—') +'</span></div></td><td class="mono" style="color:var(--gold)">'+fmt(u.invested)+'</td><td class="mono" style="color:var(--warn)">'+fmt(u.withdrawn)+'</td><td class="mono" style="color:'+availColor+';font-weight:700">'+fmt(available)+'</td><td class="mono">'+ (u.referrals?Object.keys(u.referrals).length:0) +'</td><td><span class="badge '+(u.locked?'badge-locked':'badge-active')+'">'+(u.locked?'Locked':'Active')+'</span></td><td style="display:flex;gap:6px;flex-wrap:wrap;"><button class="btn btn-edit" onclick="openEditModal(\''+u.username+'\')">✏️ Edit</button><button class="btn btn-edit" onclick="openEditPhoneModal(\''+u.username+'\')">📱 Phone</button><button class="btn '+(u.locked?'btn-approve':'btn-reject')+'" onclick="toggleLock(\''+u.username+'\','+(!u.locked)+')">'+(u.locked?'🔓 Unlock':'🔒 Lock')+'</button><button class="btn btn-delete" onclick="deleteUser(\''+u.username+'\')">🗑️</button></td></tr>'; }).join('');
+  tbody.innerHTML=filtered.map(u=>{ const sk=safeKey(u.username||''); const availColor=(u.balance||0)>0?'var(--accent3)':'var(--warn)'; return '<tr><td><strong>'+ (u.username||'—') +'</strong></td><td class="mono">'+ (u.phone||'—') +'</strong></td><td><div class="pw-cell" id="pwcell_'+sk+'"><span class="pw-val" onclick="editPw(\''+sk+'\')">'+ (u.password||'—') +'</span></div></td><td class="mono" style="color:var(--gold)">'+fmt(u.invested)+'</td><td class="mono" style="color:'+availColor+';font-weight:700">'+fmt(u.balance)+'</td><td class="mono">'+ (u.referrals?Object.keys(u.referrals).length:0) +'</td><td><span class="badge '+(u.locked?'badge-locked':'badge-active')+'">'+(u.locked?'Locked':'Active')+'</span></td><td style="display:flex;gap:6px;flex-wrap:wrap;"><button class="btn btn-edit" onclick="openEditModal(\''+u.username+'\')">✏️ Edit</button><button class="btn btn-edit" onclick="openEditPhoneModal(\''+u.username+'\')">📱 Phone</button><button class="btn '+(u.locked?'btn-approve':'btn-reject')+'" onclick="toggleLock(\''+u.username+'\','+(!u.locked)+')">'+(u.locked?'🔓 Unlock':'🔒 Lock')+'</button><button class="btn btn-delete" onclick="deleteUser(\''+u.username+'\')">🗑️</button></td></tr>'; }).join('');
 }
 
 function editPw(sk){ const cell=document.getElementById('pwcell_'+sk); if(!cell) return; const cur=cell.querySelector('.pw-val'); const currentPw=cur?cur.textContent:''; cell.innerHTML='<input class="pw-edit-input" id="pwinput_'+sk+'" value="'+currentPw+'" type="text"><button class="pw-save-btn" onclick="savePw(\''+sk+'\')">✓</button>'; const inp=document.getElementById('pwinput_'+sk); if(inp){inp.focus();inp.onkeydown=e=>{if(e.key==='Enter')savePw(sk);if(e.key==='Escape')renderUsersTable();};} }
@@ -862,22 +862,18 @@ async function approveWithdrawal(reqKey, username, amount, sendAmount, txKey){
     const reference = allWithdrawals[reqKey]?.reference || ('ref_'+Date.now());
     try {
       await callMarzSendAdmin(phone, sendAmount, reference, 'Rich-Root Withdrawal — '+username);
-      // ON SUCCESS: FETCH FRESH DATA and ONLY UPDATE withdrawn, NEVER touch profitEarned again
-      db.ref('users/'+safeKey(username)+'/withdrawn').once('value', snap => {
-        const freshWithdrawn = snap.val() || 0;
-        db.ref().update({
-          ['users/'+safeKey(username)+'/withdrawn']: freshWithdrawn + amount,
-          ['users/'+safeKey(username)+'/transactions/'+txKey+'/status']: 'completed',
-          ['users/'+safeKey(username)+'/transactions/'+txKey+'/note']: 'Withdrawal Successful ✅ — sent to '+phone,
-          ['pendingWithdrawals/'+reqKey+'/status']: 'approved'
-        });
+      // ON SUCCESS: Just mark as completed, balance already deducted
+      db.ref().update({
+        ['users/'+safeKey(username)+'/transactions/'+txKey+'/status']: 'completed',
+        ['users/'+safeKey(username)+'/transactions/'+txKey+'/note']: 'Withdrawal Successful ✅ — sent to '+phone,
+        ['pendingWithdrawals/'+reqKey+'/status']: 'approved'
       });
       toast('✅ Withdrawal successful — MarzPay sent '+fmt(sendAmount)+' to '+username);
     } catch(err){
-      // ON FAILURE: REFUND the amount back to profitEarned
-      const curBal = allUsers[safeKey(username)]?.profitEarned||0;
+      // ON FAILURE: REFUND the amount back to balance
+      const curBal = allUsers[safeKey(username)]?.balance||0;
       db.ref().update({
-        ['users/'+safeKey(username)+'/profitEarned']: curBal+amount,
+        ['users/'+safeKey(username)+'/balance']: curBal+amount,
         ['users/'+safeKey(username)+'/transactions/'+txKey+'/status']: 'failed',
         ['users/'+safeKey(username)+'/transactions/'+txKey+'/note']: 'Withdrawal failed ❌ — MarzPay error: '+err.message,
         ['pendingWithdrawals/'+reqKey+'/status']: 'failed'

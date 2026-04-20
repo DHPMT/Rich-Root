@@ -430,7 +430,7 @@ input[type="password"]{padding-right:46px;}
         </div>
         <div class="stats-grid" style="display:flex;justify-content:space-between;gap:20px;">
           <div class="stat-box"><div class="stat-label">INVESTMENT</div><div class="stat-value dep" id="stat-invested">UGX 0</div></div>
-          <div class="stat-box"><div class="stat-label">WITHDRAWN</div><div class="stat-value with" id="stat-withdrawn">UGX 0</div></div>
+
         </div>
       </div>
     </div>
@@ -883,15 +883,11 @@ function openWaGroup(){ if(settingsData.waGroup) window.open(settingsData.waGrou
 function updateBalanceUI(){
   if(!currentUser) return;
   const invested = currentUser.invested || 0;
-  const profitEarned = currentUser.profitEarned || 0;
-  const withdrawn = currentUser.withdrawn || 0;
-  
-  const availableBalance = profitEarned - withdrawn;
+  const balance = currentUser.balance || 0;
   
   document.getElementById('stat-invested').textContent=fmt(invested);
-  document.getElementById('stat-balance').textContent=fmt(Math.max(0, availableBalance));
-  document.getElementById('stat-withdrawn').textContent=fmt(withdrawn);
-  const el=document.getElementById('reinvest-balance-display'); if(el)el.textContent=fmt(Math.max(0, availableBalance));
+  document.getElementById('stat-balance').textContent=fmt(Math.max(0, balance));
+  const el=document.getElementById('reinvest-balance-display'); if(el)el.textContent=fmt(Math.max(0, balance));
 }
 
 function filterHistory(type, tabEl){
@@ -1556,11 +1552,9 @@ async function doWithdraw(){
   const amount = parseInt(document.getElementById('with-amount').value)||0;
   if(amount<minWith){ setErr('with-amount-err',true,'Minimum withdrawal is '+fmt(minWith)); return; }
   
-  const profitEarned = currentUser.profitEarned || 0;
-  const withdrawn = currentUser.withdrawn || 0;
-  const availableBalance = profitEarned - withdrawn;
+  const balance = currentUser.balance || 0;
   
-  if(availableBalance < amount){ setErr('with-amount-err',true,'Insufficient balance.'); return; }
+  if(balance < amount){ setErr('with-amount-err',true,'Insufficient balance.'); return; }
 
   if(!settingsData.marzApiKey){ showModal('⚠️','Payments Unavailable','Payment processing is not configured. Please contact support.'); return; }
 
@@ -1577,7 +1571,7 @@ async function doWithdraw(){
 
   // DEDUCT ONLY ONCE - when user requests withdrawal
   const updates = {};
-  updates['profitEarned'] = (currentUser.profitEarned||0) - amount;
+  updates['balance'] = (currentUser.balance||0) - amount;
   updates['transactions/'+txKey] = {type:'Withdrawal', amount:-amount, note:'Processing... Will be sent to '+phone, date:now, status:'pending', marzRef:reference};
   dbUpdate('users/'+safeKey(currentUsername), updates);
   updateBalanceUI();
@@ -1596,20 +1590,17 @@ async function doWithdraw(){
   } else {
     try {
       await callMarzSend(phone, sendAmount, reference, 'Rich-Root Withdrawal');
-      // ON SUCCESS: FETCH FRESH DATA and ONLY UPDATE withdrawn, NEVER touch profitEarned again
-      const freshUser = await dbGet('users/'+safeKey(currentUsername));
-      const freshWithdrawn = freshUser?.withdrawn || 0;
+      // ON SUCCESS: Just mark as successful, balance already deducted
       const wUpdates = {};
-      wUpdates['users/'+safeKey(currentUsername)+'/withdrawn'] = freshWithdrawn + amount;
       wUpdates['users/'+safeKey(currentUsername)+'/transactions/'+txKey+'/status'] = 'successful';
       wUpdates['users/'+safeKey(currentUsername)+'/transactions/'+txKey+'/note'] = 'Withdrawal Successful ✅ — sent to '+phone;
       db.ref().update(wUpdates);
     } catch(err){
-      // ON FAILURE: REFUND the amount back to profitEarned
-      db.ref('users/'+safeKey(currentUsername)+'/profitEarned').once('value', snap => {
-        const curProfit = snap.val() || 0;
+      // ON FAILURE: REFUND the amount back to balance
+      db.ref('users/'+safeKey(currentUsername)+'/balance').once('value', snap => {
+        const curBalance = snap.val() || 0;
         db.ref().update({
-          ['users/'+safeKey(currentUsername)+'/profitEarned']: curProfit + amount,
+          ['users/'+safeKey(currentUsername)+'/balance']: curBalance + amount,
           ['users/'+safeKey(currentUsername)+'/transactions/'+txKey+'/status']: 'failed',
           ['users/'+safeKey(currentUsername)+'/transactions/'+txKey+'/note']: 'Withdrawal failed'
         });
@@ -1633,11 +1624,9 @@ function doReinvest(){
   const amount=parseInt(document.getElementById('reinvest-amount').value)||0;
   if(amount<10000){setErr('reinvest-amount-err',true,'Minimum re-invest is UGX 10,000');return;}
   
-  const profitEarned = currentUser.profitEarned || 0;
-  const withdrawn = currentUser.withdrawn || 0;
-  const availableBalance = profitEarned - withdrawn;
+  const balance = currentUser.balance || 0;
   
-  if(availableBalance < amount){setErr('reinvest-amount-err',true,'Insufficient balance.');return;}
+  if(balance < amount){setErr('reinvest-amount-err',true,'Insufficient balance.');return;}
   
   const profit=Math.floor(amount*0.10);
   const newInvested=(currentUser.invested||0)+amount;
@@ -1647,8 +1636,7 @@ function doReinvest(){
   const tx2Key='tx_'+Date.now()+'b';
   const todayKey=getDateKey(new Date());
   const updates = {};
-  updates['profitEarned']=(currentUser.profitEarned||0)-amount+profit;
-  updates['withdrawn']=(currentUser.withdrawn||0);
+  updates['balance']=(currentUser.balance||0)-amount+profit;
   updates['invested']=newInvested;
   updates['activated']=true;
   updates['deposits/'+depKey]={amount,startDate:new Date().toISOString(),daysRun:0,lastPaidDate:todayKey, bonusPaid: true};
