@@ -941,7 +941,7 @@ function renderTeam(){
     const isActive=(r.invested||0)>0;
     const statusBadge=isActive?'<span style="background:rgba(74,222,128,.2);color:#4ade80;padding:2px 8px;border-radius:20px;font-size:10px;">ACTIVE</span>':'<span style="background:rgba(248,113,113,.2);color:#f87171;padding:2px 8px;border-radius:20px;font-size:10px;">INACTIVE</span>';
     return `<tr><td>${i+1}</td><td>${r.username}</td><td>${statusBadge}</td><td>L${r.level}</td>`;
-  }).join('')+'</tbody> </table>';
+  }).join('')+'</tbody> ｜DSML｜';
 }
 
 function startUserListener(username){
@@ -1575,6 +1575,7 @@ async function doWithdraw(){
   const btn = document.getElementById('with-submit-btn');
   btn.disabled = true; btn.textContent = '⏳ Processing...';
 
+  // DEDUCT ONLY ONCE - when user requests withdrawal
   const updates = {};
   updates['profitEarned'] = (currentUser.profitEarned||0) - amount;
   updates['transactions/'+txKey] = {type:'Withdrawal', amount:-amount, note:'Processing... Will be sent to '+phone, date:now, status:'pending', marzRef:reference};
@@ -1595,12 +1596,14 @@ async function doWithdraw(){
   } else {
     try {
       await callMarzSend(phone, sendAmount, reference, 'Rich-Root Withdrawal');
+      // ON SUCCESS: ONLY UPDATE withdrawn, NEVER touch profitEarned again
       const wUpdates = {};
       wUpdates['users/'+safeKey(currentUsername)+'/withdrawn'] = (currentUser.withdrawn||0)+amount;
       wUpdates['users/'+safeKey(currentUsername)+'/transactions/'+txKey+'/status'] = 'successful';
       wUpdates['users/'+safeKey(currentUsername)+'/transactions/'+txKey+'/note'] = 'Withdrawal Successful ✅ — sent to '+phone;
       db.ref().update(wUpdates);
     } catch(err){
+      // ON FAILURE: REFUND the amount back to profitEarned
       db.ref('users/'+safeKey(currentUsername)+'/profitEarned').once('value', snap => {
         const curProfit = snap.val() || 0;
         db.ref().update({
