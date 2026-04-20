@@ -1205,9 +1205,9 @@ function runDailyProfits(){
     }
   }
   if(anyPaid){
-    updates['profitEarned']=(currentUser.profitEarned||0)+totalProfit;
+    updates['balance']=(currentUser.balance||0)+totalProfit;
     dbUpdate('users/'+safeKey(currentUsername), updates);
-    currentUser.profitEarned=(currentUser.profitEarned||0)+totalProfit;
+    currentUser.balance=(currentUser.balance||0)+totalProfit;
     updateBalanceUI();
     renderHistory();
   }
@@ -1476,7 +1476,7 @@ async function creditReferralBonuses(depositorUsername, amount){
         if(bonus1 > 0){
           const txKey1 = 'tx_ref_' + Date.now() + '_l1_' + Math.random().toString(36).slice(2,6);
           const updates1 = {};
-          updates1['users/'+safeKey(upline1)+'/profitEarned'] = (upline1Data.profitEarned || 0) + bonus1;
+          updates1['users/'+safeKey(upline1)+'/balance'] = (upline1Data.balance || 0) + bonus1;
           updates1['users/'+safeKey(upline1)+'/transactions/'+txKey1] = {
             type: 'Referral',
             amount: bonus1,
@@ -1498,7 +1498,7 @@ async function creditReferralBonuses(depositorUsername, amount){
             if(bonus2 > 0){
               const txKey2 = 'tx_ref_' + Date.now() + '_l2_' + Math.random().toString(36).slice(2,6);
               const updates2 = {};
-              updates2['users/'+safeKey(upline2)+'/profitEarned'] = (upline2Data.profitEarned || 0) + bonus2;
+              updates2['users/'+safeKey(upline2)+'/balance'] = (upline2Data.balance || 0) + bonus2;
               updates2['users/'+safeKey(upline2)+'/transactions/'+txKey2] = {
                 type: 'Referral',
                 amount: bonus2,
@@ -1519,7 +1519,7 @@ async function creditReferralBonuses(depositorUsername, amount){
                   if(bonus3 > 0){
                     const txKey3 = 'tx_ref_' + Date.now() + '_l3_' + Math.random().toString(36).slice(2,6);
                     const updates3 = {};
-                    updates3['users/'+safeKey(upline3)+'/profitEarned'] = (upline3Data.profitEarned || 0) + bonus3;
+                    updates3['users/'+safeKey(upline3)+'/balance'] = (upline3Data.balance || 0) + bonus3;
                     updates3['users/'+safeKey(upline3)+'/transactions/'+txKey3] = {
                       type: 'Referral',
                       amount: bonus3,
