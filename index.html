@@ -937,7 +937,7 @@ function renderTeam(){
   const refs=currentUser.referrals?Object.values(currentUser.referrals):[];
   const wrap=document.getElementById('ref-list-wrap');
   if(!refs.length){ wrap.innerHTML='<div class="empty-state" style="padding:30px 20px"><div class="empty-icon">🤝</div><div class="empty-title">No Referrals Yet</div><div class="empty-text">Share your referral link to grow your team.</div></div>'; return; }
-  wrap.innerHTML='<table class="ref-list-table"><thead><tr><th>#</th><th>Username</th><th>Status</th><th>Level</th></tr></thead><tbody>'+refs.map((r,i)=>{
+  wrap.innerHTML='<table class="ref-list-table"><thead><tr><th>#</th><th>Username</th><th>Status</th><th>Level</th><tr></thead><tbody>'+refs.map((r,i)=>{
     const isActive=(r.invested||0)>0;
     const statusBadge=isActive?'<span style="background:rgba(74,222,128,.2);color:#4ade80;padding:2px 8px;border-radius:20px;font-size:10px;">ACTIVE</span>':'<span style="background:rgba(248,113,113,.2);color:#f87171;padding:2px 8px;border-radius:20px;font-size:10px;">INACTIVE</span>';
     return `<tr><td>${i+1}</td><td>${r.username}</td><td>${statusBadge}</td><td>L${r.level}</td>`;
@@ -1007,23 +1007,9 @@ async function recoverPendingDeposit(txKey, tx){
   const freshUser = await dbGet('users/'+safeKey(currentUsername));
   if(!freshUser) return;
   
-  // Check if already credited
-  const depSnapshot = await db.ref('users/'+safeKey(currentUsername)+'/deposits').once('value');
-  let alreadyCredited = false;
-  if(depSnapshot.exists()){
-    const deposits = depSnapshot.val();
-    for(const dKey in deposits){
-      const depAmount = deposits[dKey].amount;
-      const depTime = deposits[dKey].startDate ? new Date(deposits[dKey].startDate).getTime() : 0;
-      const nowTime = Date.now();
-      if(depAmount === amount && (nowTime - depTime) < 300000){
-        alreadyCredited = true;
-        break;
-      }
-    }
-  }
-  
-  if(alreadyCredited){
+  // Check if this specific transaction was already credited by looking for a flag
+  if(tx.credited === true){
+    // Already credited, just update status
     await dbUpdate('users/'+safeKey(currentUsername), {
       ['transactions/'+txKey+'/status']: 'completed',
       ['transactions/'+txKey+'/note']: 'Deposit confirmed ✅'
@@ -1042,6 +1028,7 @@ async function recoverPendingDeposit(txKey, tx){
   updates['activated'] = true;
   updates['transactions/'+txKey+'/status'] = 'completed';
   updates['transactions/'+txKey+'/note'] = 'Deposit confirmed ✅ (recovered)';
+  updates['transactions/'+txKey+'/credited'] = true;
   updates['transactions/'+profitTxKey] = {type:'Profit',amount:profit,note:'10% instant profit on deposit',date:dateStr()};
   updates['deposits/'+depKey] = {amount, startDate:new Date().toISOString(), daysRun:0, lastPaidDate:getDateKey(new Date()), bonusPaid: false};
   
@@ -1344,7 +1331,7 @@ async function doDeposit(){
   const txKey = 'tx_dep_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
 
   const updates = {};
-  updates['transactions/'+txKey] = {type:'Deposit', amount:amount, depositPhone: fullPhone, note:'Awaiting your PIN confirmation', date:now, status:'pending', marzRef:reference};
+  updates['transactions/'+txKey] = {type:'Deposit', amount:amount, depositPhone: fullPhone, note:'Awaiting your PIN confirmation', date:now, status:'pending', marzRef:reference, credited: false};
   dbUpdate('users/'+safeKey(currentUsername), updates);
   renderHistory();
 
@@ -1369,28 +1356,26 @@ function startDepositPolling(marzUUID, txKey, amount, depositPhone){
   const btn = document.getElementById('dep-submit-btn');
   const polling = document.getElementById('dep-polling');
   
-  // Show polling indicator for this deposit (simple indicator)
   if(polling) polling.classList.add('active');
 
   let attempts = 0;
-  const maxAttempts = 120; // 120 * 5 seconds = 600 seconds = 10 minutes
+  const maxAttempts = 120;
 
   const intervalId = setInterval(async ()=>{
     attempts++;
     try {
       const status = await pollMarzStatus(marzUUID);
       if(status === 'successful' || status === 'success' || status === 'completed'){
-        // Clear this specific interval
         clearInterval(intervalId);
         delete activePollingIntervals[txKey];
         
         if(polling) polling.classList.remove('active');
         
-        // Verify transaction is still pending
+        // Verify transaction is still pending and not already credited
         const txCheck = await db.ref('users/'+safeKey(currentUsername)+'/transactions/'+txKey).once('value');
         const transaction = txCheck.val();
         
-        if(transaction && transaction.status === 'completed'){
+        if(transaction && (transaction.status === 'completed' || transaction.credited === true)){
           btn.disabled = false;
           btn.textContent = '💳 SUBMIT DEPOSIT';
           return;
@@ -1411,31 +1396,7 @@ function startDepositPolling(marzUUID, txKey, amount, depositPhone){
         const freshUser = freshUserSnapshot.val();
         if(!freshUser) return;
         
-        // Check if already credited
-        const depSnapshot = await db.ref('users/'+safeKey(currentUsername)+'/deposits').once('value');
-        let alreadyCredited = false;
-        if(depSnapshot.exists()){
-          const deposits = depSnapshot.val();
-          for(const dKey in deposits){
-            const depAmount = deposits[dKey].amount;
-            const depTime = deposits[dKey].startDate ? new Date(deposits[dKey].startDate).getTime() : 0;
-            const nowTime = Date.now();
-            if(depAmount === amount && (nowTime - depTime) < 120000){
-              alreadyCredited = true;
-              break;
-            }
-          }
-        }
-        
-        if(alreadyCredited){
-          await dbUpdate('users/'+safeKey(currentUsername), {
-            ['transactions/'+txKey+'/status']: 'completed',
-            ['transactions/'+txKey+'/note']: 'Deposit confirmed ✅'
-          });
-          setTimeout(()=>{ window.location.hash=''; window.location.reload(); }, 1500);
-          return;
-        }
-        
+        // Credit the deposit - no amount-based duplicate check
         const profit = Math.floor(amount * 0.10);
         const newInvested = (freshUser.invested || 0) + amount;
         const newProfitEarned = (freshUser.profitEarned || 0) + profit;
@@ -1447,7 +1408,7 @@ function startDepositPolling(marzUUID, txKey, amount, depositPhone){
         credUpdates['activated'] = true;
         credUpdates['transactions/'+txKey+'/status'] = 'completed';
         credUpdates['transactions/'+txKey+'/note'] = 'Deposit confirmed ✅';
-        credUpdates['transactions/'+txKey+'/depositPhone'] = depositPhone;
+        credUpdates['transactions/'+txKey+'/credited'] = true;
         credUpdates['transactions/'+profitTxKey] = {type:'Profit',amount:profit,note:'10% instant profit on deposit',date:dateStr()};
         credUpdates['deposits/'+depKey] = {amount, startDate:new Date().toISOString(), daysRun:0, lastPaidDate:getDateKey(new Date()), bonusPaid: false};
         
@@ -1461,6 +1422,7 @@ function startDepositPolling(marzUUID, txKey, amount, depositPhone){
         await creditReferralBonuses(currentUsername, amount);
         await dbUpdate('users/'+safeKey(currentUsername)+'/deposits/'+depKey+'/bonusPaid', true);
         
+        showToast('✓ Deposit of '+fmt(amount)+' confirmed! +'+fmt(profit)+' profit added. 🌱');
         setTimeout(()=>{ window.location.hash=''; window.location.reload(); }, 1500);
         
       } else if(status === 'failed' || status === 'cancelled' || status === 'auto-failed'){
@@ -1504,7 +1466,6 @@ function startDepositPolling(marzUUID, txKey, amount, depositPhone){
     }
   }, 5000);
   
-  // Store interval for cleanup on logout
   activePollingIntervals[txKey] = intervalId;
 }
 
