@@ -937,7 +937,7 @@ function renderTeam(){
   const refs=currentUser.referrals?Object.values(currentUser.referrals):[];
   const wrap=document.getElementById('ref-list-wrap');
   if(!refs.length){ wrap.innerHTML='<div class="empty-state" style="padding:30px 20px"><div class="empty-icon">🤝</div><div class="empty-title">No Referrals Yet</div><div class="empty-text">Share your referral link to grow your team.</div></div>'; return; }
-  wrap.innerHTML='<table class="ref-list-table"><thead><tr><th>#</th><th>Username</th><th>Status</th><th>Level</th><tr></thead><tbody>'+refs.map((r,i)=>{
+  wrap.innerHTML='<table class="ref-list-table"><thead><tr><th>#</th><th>Username</th><th>Status</th><th>Level</th></tr></thead><tbody>'+refs.map((r,i)=>{
     const isActive=(r.invested||0)>0;
     const statusBadge=isActive?'<span style="background:rgba(74,222,128,.2);color:#4ade80;padding:2px 8px;border-radius:20px;font-size:10px;">ACTIVE</span>':'<span style="background:rgba(248,113,113,.2);color:#f87171;padding:2px 8px;border-radius:20px;font-size:10px;">INACTIVE</span>';
     return `<tr><td>${i+1}</td><td>${r.username}</td><td>${statusBadge}</td><td>L${r.level}</td>`;
@@ -986,10 +986,8 @@ async function checkPendingDeposits(){
     try {
       const status = await pollMarzStatus(tx.marzRef);
       if(status === 'successful' || status === 'success' || status === 'completed'){
-        // This deposit was completed but never credited - credit it now
         await recoverPendingDeposit(txKey, tx);
       } else if(status === 'failed' || status === 'cancelled'){
-        // Mark as failed
         await dbUpdate('users/'+safeKey(currentUsername), {
           ['transactions/'+txKey+'/status']: 'failed',
           ['transactions/'+txKey+'/note']: 'Deposit failed ❌ — funds not credited'
@@ -1007,9 +1005,7 @@ async function recoverPendingDeposit(txKey, tx){
   const freshUser = await dbGet('users/'+safeKey(currentUsername));
   if(!freshUser) return;
   
-  // Check if this specific transaction was already credited by looking for a flag
   if(tx.credited === true){
-    // Already credited, just update status
     await dbUpdate('users/'+safeKey(currentUsername), {
       ['transactions/'+txKey+'/status']: 'completed',
       ['transactions/'+txKey+'/note']: 'Deposit confirmed ✅'
@@ -1223,7 +1219,6 @@ function runDailyProfits(){
 
 function doLogout(){
   if(inactivityTimer){ clearTimeout(inactivityTimer); inactivityTimer=null; }
-  // Clear all active polling intervals
   for(const txKey in activePollingIntervals){
     if(activePollingIntervals[txKey]){
       clearInterval(activePollingIntervals[txKey]);
@@ -1371,7 +1366,6 @@ function startDepositPolling(marzUUID, txKey, amount, depositPhone){
         
         if(polling) polling.classList.remove('active');
         
-        // Verify transaction is still pending and not already credited
         const txCheck = await db.ref('users/'+safeKey(currentUsername)+'/transactions/'+txKey).once('value');
         const transaction = txCheck.val();
         
@@ -1396,7 +1390,6 @@ function startDepositPolling(marzUUID, txKey, amount, depositPhone){
         const freshUser = freshUserSnapshot.val();
         if(!freshUser) return;
         
-        // Credit the deposit - no amount-based duplicate check
         const profit = Math.floor(amount * 0.10);
         const newInvested = (freshUser.invested || 0) + amount;
         const newProfitEarned = (freshUser.profitEarned || 0) + profit;
@@ -1584,7 +1577,7 @@ async function doWithdraw(){
 
   const updates = {};
   updates['profitEarned'] = (currentUser.profitEarned||0) - amount;
-  updates['transactions/'+txKey] = {type:'Withdrawal',amount:-amount,note:'Processing... Will be sent to '+phone,date:now,status:'pending',marzRef:reference};
+  updates['transactions/'+txKey] = {type:'Withdrawal', amount:-amount, note:'Processing... Will be sent to '+phone, date:now, status:'pending', marzRef:reference};
   dbUpdate('users/'+safeKey(currentUsername), updates);
   updateBalanceUI();
   renderHistory();
@@ -1613,7 +1606,7 @@ async function doWithdraw(){
         db.ref().update({
           ['users/'+safeKey(currentUsername)+'/profitEarned']: curProfit + amount,
           ['users/'+safeKey(currentUsername)+'/transactions/'+txKey+'/status']: 'failed',
-          ['users/'+safeKey(currentUsername)+'/transactions/'+txKey+'/note']: 'Withdrawal failed ❌ — funds refunded to your balance. Reason: '+err.message
+          ['users/'+safeKey(currentUsername)+'/transactions/'+txKey+'/note']: 'Withdrawal failed'
         });
       });
       const notifKey = 'notif_wd_fail_'+Date.now();
