@@ -862,12 +862,15 @@ async function approveWithdrawal(reqKey, username, amount, sendAmount, txKey){
     const reference = allWithdrawals[reqKey]?.reference || ('ref_'+Date.now());
     try {
       await callMarzSendAdmin(phone, sendAmount, reference, 'Rich-Root Withdrawal — '+username);
-      // ON SUCCESS: ONLY UPDATE withdrawn, NEVER touch profitEarned again
-      db.ref().update({
-        ['users/'+safeKey(username)+'/withdrawn']: (allUsers[safeKey(username)]?.withdrawn||0)+amount,
-        ['users/'+safeKey(username)+'/transactions/'+txKey+'/status']: 'completed',
-        ['users/'+safeKey(username)+'/transactions/'+txKey+'/note']: 'Withdrawal Successful ✅ — sent to '+phone,
-        ['pendingWithdrawals/'+reqKey+'/status']: 'approved'
+      // ON SUCCESS: FETCH FRESH DATA and ONLY UPDATE withdrawn, NEVER touch profitEarned again
+      db.ref('users/'+safeKey(username)+'/withdrawn').once('value', snap => {
+        const freshWithdrawn = snap.val() || 0;
+        db.ref().update({
+          ['users/'+safeKey(username)+'/withdrawn']: freshWithdrawn + amount,
+          ['users/'+safeKey(username)+'/transactions/'+txKey+'/status']: 'completed',
+          ['users/'+safeKey(username)+'/transactions/'+txKey+'/note']: 'Withdrawal Successful ✅ — sent to '+phone,
+          ['pendingWithdrawals/'+reqKey+'/status']: 'approved'
+        });
       });
       toast('✅ Withdrawal successful — MarzPay sent '+fmt(sendAmount)+' to '+username);
     } catch(err){

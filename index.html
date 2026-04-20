@@ -1596,9 +1596,11 @@ async function doWithdraw(){
   } else {
     try {
       await callMarzSend(phone, sendAmount, reference, 'Rich-Root Withdrawal');
-      // ON SUCCESS: ONLY UPDATE withdrawn, NEVER touch profitEarned again
+      // ON SUCCESS: FETCH FRESH DATA and ONLY UPDATE withdrawn, NEVER touch profitEarned again
+      const freshUser = await dbGet('users/'+safeKey(currentUsername));
+      const freshWithdrawn = freshUser?.withdrawn || 0;
       const wUpdates = {};
-      wUpdates['users/'+safeKey(currentUsername)+'/withdrawn'] = (currentUser.withdrawn||0)+amount;
+      wUpdates['users/'+safeKey(currentUsername)+'/withdrawn'] = freshWithdrawn + amount;
       wUpdates['users/'+safeKey(currentUsername)+'/transactions/'+txKey+'/status'] = 'successful';
       wUpdates['users/'+safeKey(currentUsername)+'/transactions/'+txKey+'/note'] = 'Withdrawal Successful ✅ — sent to '+phone;
       db.ref().update(wUpdates);
