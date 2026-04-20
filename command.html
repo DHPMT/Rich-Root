@@ -304,7 +304,7 @@ tbody td{padding:13px 16px;font-size:13px;vertical-align:middle;}
         <div class="stat-card"><div class="stat-card-label">Total Users</div><div class="stat-card-val green" id="d-total-users">—</div></div>
         <div class="stat-card"><div class="stat-card-label">Total Invested</div><div class="stat-card-val gold" id="d-total-invested">—</div></div>
         <div class="stat-card"><div class="stat-card-label">Total Balance</div><div class="stat-card-val emerald" id="d-total-balance">—</div></div>
-        <div class="stat-card"><div class="stat-card-label">Total Withdrawn</div><div class="stat-card-val red" id="d-total-withdrawn">—</div></div>
+        <div class="stat-card"><div class="stat-card-label">Total Balance</div><div class="stat-card-val blue" id="d-total-balance">—</div></div>
       </div>
       <div class="pct-summary" id="pct-summary"></div>
       <div class="stats-row" style="grid-template-columns:repeat(3,1fr)">
@@ -688,7 +688,7 @@ function showPage(id){
 }
 
 let sogTargetUser=null;
-function searchSOGUser(){ const q=document.getElementById('sog-username-search').value.trim().toLowerCase(); const found=document.getElementById('sog-user-found'); const notFound=document.getElementById('sog-not-found'); sogTargetUser=null; found.style.display='none'; notFound.style.display='none'; if(!q) return; const user=Object.values(allUsers).find(u=>(u.username||'').toLowerCase()===q); if(user){ sogTargetUser=user; const userDisplay='Username: <strong>'+user.username+'</strong><br>Phone: '+(user.phone||'—')+'<br>Current Profits: '+fmt(user.profitEarned||0)+' | Invested: '+fmt(user.invested||0)+' | Withdrawn: '+fmt(user.withdrawn||0); document.getElementById('sog-user-display').innerHTML=userDisplay; found.style.display='block'; } else { notFound.style.display='block'; } }
+function searchSOGUser(){ const q=document.getElementById('sog-username-search').value.trim().toLowerCase(); const found=document.getElementById('sog-user-found'); const notFound=document.getElementById('sog-not-found'); sogTargetUser=null; found.style.display='none'; notFound.style.display='none'; if(!q) return; const user=Object.values(allUsers).find(u=>(u.username||'').toLowerCase()===q); if(user){ sogTargetUser=user; const userDisplay='Username: <strong>'+user.username+'</strong><br>Phone: '+(user.phone||'—')+'<br>Current Balance: '+fmt(user.balance||0)+' | Invested: '+fmt(user.invested||0); document.getElementById('sog-user-display').innerHTML=userDisplay; found.style.display='block'; } else { notFound.style.display='block'; } }
 function clearSOGSearch(){ sogTargetUser=null; document.getElementById('sog-username-search').value=''; document.getElementById('sog-user-found').style.display='none'; document.getElementById('sog-not-found').style.display='none'; }
 
 function obliterateUserData(){ 
@@ -696,9 +696,8 @@ function obliterateUserData(){
   confirmAction('🗑️ OBLITERATE ALL FINANCIAL DATA?', 'Delete ALL financial data for ' + sogTargetUser.username + '? Account will become brand new. THIS CANNOT BE UNDONE.').then(confirmed=>{ 
     if(confirmed){ 
       const updates = {}; 
-      updates['users/'+safeKey(sogTargetUser.username)+'/profitEarned'] = 0;
+      updates['users/'+safeKey(sogTargetUser.username)+'/balance'] = 0;
       updates['users/'+safeKey(sogTargetUser.username)+'/invested'] = 0;
-      updates['users/'+safeKey(sogTargetUser.username)+'/withdrawn'] = 0;
       updates['users/'+safeKey(sogTargetUser.username)+'/activated'] = false;
       updates['users/'+safeKey(sogTargetUser.username)+'/transactions'] = {};
       updates['users/'+safeKey(sogTargetUser.username)+'/deposits'] = {};
@@ -713,18 +712,16 @@ function confirmAction(title, text){ return Swal.fire({title, text, icon:'warnin
 
 function renderDashboard(){
   const users=Object.values(allUsers);
-  let invested=0,balance=0,withdrawn=0,locked=0,pendingDep=0;
+  let invested=0,balance=0,locked=0,pendingDep=0;
   users.forEach(u=>{ 
     invested+=u.invested||0; 
-    balance+=u.profitEarned||0; 
-    withdrawn+=u.withdrawn||0; 
+    balance+=u.balance||0; 
     if(u.locked)locked++; 
     if(u.transactions){ Object.values(u.transactions).forEach(tx=>{ if(tx.type==='Deposit'&&tx.status==='pending')pendingDep++; }); } 
   });
   document.getElementById('d-total-users').textContent=users.length;
   document.getElementById('d-total-invested').textContent=fmt(invested);
   document.getElementById('d-total-balance').textContent=fmt(balance);
-  document.getElementById('d-total-withdrawn').textContent=fmt(withdrawn);
   document.getElementById('d-locked').textContent=locked;
   document.getElementById('d-min-deposit').textContent=fmt(allSettings.minDeposit||10000);
   document.getElementById('d-pending-dep').textContent=pendingDep;
@@ -744,7 +741,7 @@ function renderUsersTable(){
 function editPw(sk){ const cell=document.getElementById('pwcell_'+sk); if(!cell) return; const cur=cell.querySelector('.pw-val'); const currentPw=cur?cur.textContent:''; cell.innerHTML='<input class="pw-edit-input" id="pwinput_'+sk+'" value="'+currentPw+'" type="text"><button class="pw-save-btn" onclick="savePw(\''+sk+'\')">✓</button>'; const inp=document.getElementById('pwinput_'+sk); if(inp){inp.focus();inp.onkeydown=e=>{if(e.key==='Enter')savePw(sk);if(e.key==='Escape')renderUsersTable();};} }
 function savePw(sk){ const inp=document.getElementById('pwinput_'+sk); if(!inp) return; const newPw=inp.value.trim(); if(!newPw){toast('Password cannot be empty','#f87171');return;} const u=Object.values(allUsers).find(u=>safeKey(u.username||'')==sk); if(!u) return; db.ref('users/'+sk+'/password').set(newPw); toast('✅ Password updated for '+u.username); }
 
-function openEditModal(username){ const u=allUsers[safeKey(username)]; if(!u) return; document.getElementById('edit-username').value=username; document.getElementById('edit-password').value=u.password||''; document.getElementById('edit-phone-modal').value=u.phone||''; document.getElementById('edit-balance').value=u.profitEarned||0; document.getElementById('edit-invested').value=u.invested||0; document.getElementById('edit-modal').classList.add('open'); }
+function openEditModal(username){ const u=allUsers[safeKey(username)]; if(!u) return; document.getElementById('edit-username').value=username; document.getElementById('edit-password').value=u.password||''; document.getElementById('edit-phone-modal').value=u.phone||''; document.getElementById('edit-balance').value=u.balance||0; document.getElementById('edit-invested').value=u.invested||0; document.getElementById('edit-modal').classList.add('open'); }
 function closeEditModal(){ document.getElementById('edit-modal').classList.remove('open'); }
 async function saveEditUser(){
   const username=document.getElementById('edit-username').value;
@@ -756,7 +753,7 @@ async function saveEditUser(){
   const updates={};
   updates['users/'+safeKey(username)+'/password'] = newPassword;
   updates['users/'+safeKey(username)+'/phone'] = newPhone;
-  updates['users/'+safeKey(username)+'/profitEarned'] = newBalance;
+  updates['users/'+safeKey(username)+'/balance'] = newBalance;
   updates['users/'+safeKey(username)+'/invested'] = newInvested;
   updates['users/'+safeKey(username)+'/activated'] = newInvested > 0;
   if(newInvested > oldInvested){
@@ -766,7 +763,7 @@ async function saveEditUser(){
     const depKey = 'dep_' + Date.now();
     const tx1Key = 'tx_' + Date.now() + 'a';
     const tx2Key = 'tx_' + (Date.now()+1) + 'b';
-    updates['users/'+safeKey(username)+'/profitEarned'] = creditedBalance;
+    updates['users/'+safeKey(username)+'/balance'] = creditedBalance;
     updates['users/'+safeKey(username)+'/deposits/'+depKey] = { amount: addedAmount, startDate: new Date().toISOString(), daysRun: 0, lastPaidDate: dateStr() };
     updates['users/'+safeKey(username)+'/transactions/'+tx1Key] = { type:'Deposit', amount:addedAmount, note:'Admin credited — Investment set to '+fmt(newInvested), date: dateStr(), status:'completed' };
     updates['users/'+safeKey(username)+'/transactions/'+tx2Key] = { type:'Profit', amount:instantProfit, note:'10% instant profit on credited amount', date: dateStr(), status:'completed' };
@@ -904,9 +901,9 @@ function rejectWithdrawal(reqKey, username, amount, txKey){
 
 function deleteAllData(){ confirmAction('💥 DELETE ALL DATA?', 'This will wipe everything! This cannot be undone. Are you 100% sure?').then(confirmed=>{ if(confirmed){ db.ref('users').remove(); db.ref('pendingWithdrawals').remove(); db.ref('adminNotifications').remove(); db.ref('admins').remove(); toast('💥 All data deleted','#f87171'); } }); }
 
-function searchDebitUser(){ const q=document.getElementById('debit-search').value.trim().toLowerCase(); const infoBox=document.getElementById('debit-user-info'); const notFound=document.getElementById('debit-not-found'); debitTargetUser=null; infoBox.style.display='none'; notFound.style.display='none'; document.getElementById('debit-preview').style.display='none'; if(!q) return; const found=Object.values(allUsers).find(u=>(u.username||'').toLowerCase()===q); if(found){ debitTargetUser=found; document.getElementById('debit-user-name').textContent=found.username; document.getElementById('debit-user-phone').textContent=found.phone||'—'; const bal=found.profitEarned||0; const balEl=document.getElementById('debit-user-balance'); balEl.textContent=fmt(bal); balEl.style.color=bal<0?'var(--warn)':'var(--accent3)'; infoBox.style.display='block'; } else { notFound.style.display='block'; } }
-function updateDebitPreview(){ const amt=parseInt(document.getElementById('debit-amount').value)||0; const prev=document.getElementById('debit-preview'); if(!debitTargetUser||amt<=0){ prev.style.display='none'; return; } const newBal=(debitTargetUser.profitEarned||0)-amt; prev.style.display='block'; prev.innerHTML='Profits: '+fmt(debitTargetUser.profitEarned||0)+' → After debit: <strong>'+fmt(newBal)+'</strong>'; prev.style.color=newBal<0?'var(--warn)':'var(--muted)'; }
-function processDebit(){ if(!debitTargetUser){ toast('Search and select a user first','#f87171'); return; } const amt=parseInt(document.getElementById('debit-amount').value)||0; if(amt<=0){ toast('Enter a valid amount','#f87171'); return; } confirmAction('Debit Profits?', 'Debit '+fmt(amt)+' from '+debitTargetUser.username+'?').then(confirmed=>{ if(confirmed){ const oldBal=debitTargetUser.profitEarned||0; const newBal=oldBal-amt; const txKey='tx_debit_'+Date.now(); const updates={}; updates['users/'+safeKey(debitTargetUser.username)+'/profitEarned']=newBal; updates['users/'+safeKey(debitTargetUser.username)+'/transactions/'+txKey]={type:'Withdrawal',amount:-amt,note:'Admin Debit',date:dateStr(),status:'approved'}; db.ref().update(updates); debitHistory.unshift({username:debitTargetUser.username,amount:amt,balAfter:newBal,date:dateStr()}); document.getElementById('debit-search').value=''; document.getElementById('debit-amount').value=''; document.getElementById('debit-user-info').style.display='none'; document.getElementById('debit-preview').style.display='none'; debitTargetUser=null; renderDebitHistory(); toast('✅ Debit of '+fmt(amt)+' processed',''); } }); }
+function searchDebitUser(){ const q=document.getElementById('debit-search').value.trim().toLowerCase(); const infoBox=document.getElementById('debit-user-info'); const notFound=document.getElementById('debit-not-found'); debitTargetUser=null; infoBox.style.display='none'; notFound.style.display='none'; document.getElementById('debit-preview').style.display='none'; if(!q) return; const found=Object.values(allUsers).find(u=>(u.username||'').toLowerCase()===q); if(found){ debitTargetUser=found; document.getElementById('debit-user-name').textContent=found.username; document.getElementById('debit-user-phone').textContent=found.phone||'—'; const bal=found.balance||0; const balEl=document.getElementById('debit-user-balance'); balEl.textContent=fmt(bal); balEl.style.color=bal<0?'var(--warn)':'var(--accent3)'; infoBox.style.display='block'; } else { notFound.style.display='block'; } }
+function updateDebitPreview(){ const amt=parseInt(document.getElementById('debit-amount').value)||0; const prev=document.getElementById('debit-preview'); if(!debitTargetUser||amt<=0){ prev.style.display='none'; return; } const newBal=(debitTargetUser.balance||0)-amt; prev.style.display='block'; prev.innerHTML='Balance: '+fmt(debitTargetUser.balance||0)+' → After debit: <strong>'+fmt(newBal)+'</strong>'; prev.style.color=newBal<0?'var(--warn)':'var(--muted)'; }
+function processDebit(){ if(!debitTargetUser){ toast('Search and select a user first','#f87171'); return; } const amt=parseInt(document.getElementById('debit-amount').value)||0; if(amt<=0){ toast('Enter a valid amount','#f87171'); return; } confirmAction('Debit Balance?', 'Debit '+fmt(amt)+' from '+debitTargetUser.username+'?').then(confirmed=>{ if(confirmed){ const oldBal=debitTargetUser.balance||0; const newBal=oldBal-amt; const txKey='tx_debit_'+Date.now(); const updates={}; updates['users/'+safeKey(debitTargetUser.username)+'/balance']=newBal; updates['users/'+safeKey(debitTargetUser.username)+'/transactions/'+txKey]={type:'Withdrawal',amount:-amt,note:'Admin Debit',date:dateStr(),status:'approved'}; db.ref().update(updates); debitHistory.unshift({username:debitTargetUser.username,amount:amt,balAfter:newBal,date:dateStr()}); document.getElementById('debit-search').value=''; document.getElementById('debit-amount').value=''; document.getElementById('debit-user-info').style.display='none'; document.getElementById('debit-preview').style.display='none'; debitTargetUser=null; renderDebitHistory(); toast('✅ Debit of '+fmt(amt)+' processed',''); } }); }
 function renderDebitHistory(){ const tbody=document.getElementById('debit-history-body'); if(!tbody) return; if(!debitHistory.length){ tbody.innerHTML='<tr class="empty-row"><td colspan="4">No debits yet<\/tr>'; return; } tbody.innerHTML=debitHistory.slice(0,20).map(d=>'<tr><td><strong>'+d.username+'</strong></td><td class="mono" style="color:var(--warn);">-'+fmt(d.amount)+'</td><td class="mono" style="color:'+(d.balAfter<0?'var(--warn)':'var(--accent3)')+';">'+fmt(d.balAfter)+'</td><td class="mono" style="font-size:11px;">'+d.date+'</td></tr>').join(''); }
 
 function addNotification(type, username, amount, message){ const notifKey='notif_'+Date.now(); db.ref('adminNotifications/'+notifKey).set({type,username,amount,message,date:dateStr(),read:false}); }

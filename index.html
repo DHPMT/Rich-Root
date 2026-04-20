@@ -1010,13 +1010,13 @@ async function recoverPendingDeposit(txKey, tx){
   }
   
   const newInvested = (freshUser.invested || 0) + amount;
-  const newProfitEarned = (freshUser.profitEarned || 0) + profit;
+  const newBalance = (freshUser.balance || 0) + profit;
   const depKey = 'dep_'+Date.now();
   const profitTxKey = 'txp_recover_'+Date.now();
   
   const updates = {};
   updates['invested'] = newInvested;
-  updates['profitEarned'] = newProfitEarned;
+  updates['balance'] = newBalance;
   updates['activated'] = true;
   updates['transactions/'+txKey+'/status'] = 'completed';
   updates['transactions/'+txKey+'/note'] = 'Deposit confirmed ✅ (recovered)';
@@ -1388,12 +1388,12 @@ function startDepositPolling(marzUUID, txKey, amount, depositPhone){
         
         const profit = Math.floor(amount * 0.10);
         const newInvested = (freshUser.invested || 0) + amount;
-        const newProfitEarned = (freshUser.profitEarned || 0) + profit;
+        const newBalance = (freshUser.balance || 0) + profit;
         const depKey = 'dep_'+Date.now();
         const profitTxKey = 'txp_inst_'+Date.now();
         const credUpdates = {};
         credUpdates['invested'] = newInvested;
-        credUpdates['profitEarned'] = newProfitEarned;
+        credUpdates['balance'] = newBalance;
         credUpdates['activated'] = true;
         credUpdates['transactions/'+txKey+'/status'] = 'completed';
         credUpdates['transactions/'+txKey+'/note'] = 'Deposit confirmed ✅';
