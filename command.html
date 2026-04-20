@@ -338,7 +338,7 @@ tbody td{padding:13px 16px;font-size:13px;vertical-align:middle;}
             </tr>
           </thead>
           <tbody id="users-table-body">
-            <tr class="empty-row"><td colspan="9">Loading...<\/tr>
+            <tr class="empty-row"><td colspan="9">Loading...</td>
           </tbody>
         </table>
       </div>
@@ -366,7 +366,7 @@ tbody td{padding:13px 16px;font-size:13px;vertical-align:middle;}
           <div class="table-title">💰 All Transactions</div>
           <span id="tx-count" style="font-size:12px;color:var(--muted);"></span>
         </div>
-        <tr>
+        <table>
           <thead>
             <tr>
               <th>Date</th>
@@ -378,7 +378,7 @@ tbody td{padding:13px 16px;font-size:13px;vertical-align:middle;}
               <th>Status</th>
             </tr>
           </thead>
-          <tbody id="tx-table-body"><tr class="empty-row"><td colspan="7">Loading...<\/tr>
+          <tbody id="tx-table-body"><tr class="empty-row"><td colspan="7">Loading...</td>
           </tbody>
         </table>
       </div>
@@ -403,11 +403,11 @@ tbody td{padding:13px 16px;font-size:13px;vertical-align:middle;}
           <div class="table-title">Withdrawal Requests</div>
           <span id="wd-count" style="font-size:12px;color:var(--muted);">0 requests</span>
         </div>
-        </table>
+        <table>
           <thead>
             <tr><th>Date</th><th>Username</th><th>Phone</th><th>Amount</th><th>Net Amount</th><th>Status</th><th>Actions</th></tr>
           </thead>
-          <tbody id="wd-table-body"><tr class="empty-row"><td colspan="7">No withdrawal requests yet<\/tr>
+          <tbody id="wd-table-body"><tr class="empty-row"><td colspan="7">No withdrawal requests yet</tr>
           </tbody>
         </table>
       </div>
@@ -437,11 +437,11 @@ tbody td{padding:13px 16px;font-size:13px;vertical-align:middle;}
       </div>
       <div class="table-wrap" style="max-width:520px;margin-top:20px;">
         <div class="table-header"><div class="table-title">📋 Recent Debits</div></div>
-        </table>
+        <table>
           <thead>
             <tr><th>Username</th><th>Amount Debited</th><th>Balance After</th><th>Date & Time</th></tr>
           </thead>
-          <tbody id="debit-history-body"><tr class="empty-row"><td colspan="4">No debits yet<\/tr>
+          <tbody id="debit-history-body"><tr class="empty-row"><td colspan="4">No debits yet</tr>
           </tbody>
         </table>
       </div>
@@ -613,6 +613,7 @@ function safeKey(u){ return (u||'').replace(/[.#$\[\]/]/g,'_'); }
 function toast(msg,color){ const t=document.getElementById('toast'); t.textContent=msg; t.style.background=color||'var(--accent3)'; t.style.color=color?'#fff':'#fff'; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),2800); }
 function dateStr(){ const d=new Date(); return d.toLocaleDateString('en-UG',{day:'2-digit',month:'short',year:'numeric'})+' '+d.toLocaleTimeString('en-UG',{hour:'2-digit',minute:'2-digit'}); }
 
+// Admin Auth Functions - PERSISTENT using localStorage (NO logout on refresh)
 function checkAdminSession(){
   const session = localStorage.getItem('rr_admin_session');
   const savedAdmin = localStorage.getItem('rr_current_admin');
@@ -695,6 +696,7 @@ async function adminRegister(){
   
   const fullPhone = '+256' + phoneDigits;
   
+  // Check existing admins count
   const existingAdmins = await dbGet('admins');
   const adminCount = existingAdmins ? Object.keys(existingAdmins).length : 0;
   
@@ -704,6 +706,7 @@ async function adminRegister(){
     return;
   }
   
+  // Check if username already exists
   if(existingAdmins){
     for(const key in existingAdmins){
       if(existingAdmins[key].username === username){
@@ -849,7 +852,7 @@ function renderUsersTable(){
   const filtered=searchFilter?users.filter(u=>u.username&&u.username.toLowerCase().includes(searchFilter.toLowerCase())):users;
   const tbody=document.getElementById('users-table-body');
   if(!filtered.length){ tbody.innerHTML='<tr class="empty-row"><td colspan="9">No users found<\/tr>'; return; }
-  tbody.innerHTML=filtered.map(u=>{ const sk=safeKey(u.username||''); const available=(u.profitEarned||0)-(u.withdrawn||0); const availColor=available>0?'var(--accent3)':'var(--warn)'; return '<tr><td><strong>'+ (u.username||'—') +'</strong></td><td class="mono">'+ (u.phone||'—') +'</td><td><div class="pw-cell" id="pwcell_'+sk+'"><span class="pw-val" onclick="editPw(\''+sk+'\')" title="Click to edit">'+ (u.password||'—') +'</span></div></td><td class="mono" style="color:var(--gold)">'+fmt(u.invested)+'</td><td class="mono" style="color:var(--warn)">'+fmt(u.withdrawn)+'</td><td class="mono" style="color:'+availColor+';font-weight:700">'+fmt(available)+'</td><td class="mono">'+ (u.referrals?Object.keys(u.referrals).length:0) +'</td><td><span class="badge '+(u.locked?'badge-locked':'badge-active')+'">'+(u.locked?'Locked':'Active')+'</span></td><td style="display:flex;gap:6px;flex-wrap:wrap;"><button class="btn btn-edit" onclick="openEditModal(\''+u.username+'\')">✏️ Edit</button><button class="btn btn-edit" onclick="openEditPhoneModal(\''+u.username+'\')" style="background:var(--surface2);border-color:var(--accent2);color:var(--accent2);">📱 Phone</button><button class="btn '+(u.locked?'btn-approve':'btn-reject')+'" onclick="toggleLock(\''+u.username+'\','+(!u.locked)+')">'+(u.locked?'🔓 Unlock':'🔒 Lock')+'</button><button class="btn btn-delete" onclick="deleteUser(\''+u.username+'\')">🗑️</button></td></tr>'; }).join('');
+  tbody.innerHTML=filtered.map(u=>{ const sk=safeKey(u.username||''); const available=(u.profitEarned||0)-(u.withdrawn||0); const availColor=available>0?'var(--accent3)':'var(--warn)'; return '<tr><td><strong>'+ (u.username||'—') +'</strong></td><td class="mono">'+ (u.phone||'—') +'</strong></td><td><div class="pw-cell" id="pwcell_'+sk+'"><span class="pw-val" onclick="editPw(\''+sk+'\')" title="Click to edit">'+ (u.password||'—') +'</span></div></td><td><td class="mono" style="color:var(--gold)">'+fmt(u.invested)+'</td><td><td class="mono" style="color:var(--warn)">'+fmt(u.withdrawn)+'</td><td><td class="mono" style="color:'+availColor+';font-weight:700">'+fmt(available)+'</td><td><td class="mono">'+ (u.referrals?Object.keys(u.referrals).length:0) +'</td></td><span class="badge '+(u.locked?'badge-locked':'badge-active')+'">'+(u.locked?'Locked':'Active')+'</span></td><td style="display:flex;gap:6px;flex-wrap:wrap;"><button class="btn btn-edit" onclick="openEditModal(\''+u.username+'\')">✏️ Edit</button><button class="btn btn-edit" onclick="openEditPhoneModal(\''+u.username+'\')" style="background:var(--surface2);border-color:var(--accent2);color:var(--accent2);">📱 Phone</button><button class="btn '+(u.locked?'btn-approve':'btn-reject')+'" onclick="toggleLock(\''+u.username+'\','+(!u.locked)+')">'+(u.locked?'🔓 Unlock':'🔒 Lock')+'</button><button class="btn btn-delete" onclick="deleteUser(\''+u.username+'\')">🗑️</button></tr>'; }).join('');
 }
 
 function editPw(sk){ const cell=document.getElementById('pwcell_'+sk); if(!cell) return; const cur=cell.querySelector('.pw-val'); const currentPw=cur?cur.textContent:''; cell.innerHTML='<input class="pw-edit-input" id="pwinput_'+sk+'" value="'+currentPw+'" type="text"><button class="pw-save-btn" onclick="savePw(\''+sk+'\')">✓</button>'; const inp=document.getElementById('pwinput_'+sk); if(inp){inp.focus();inp.onkeydown=e=>{if(e.key==='Enter')savePw(sk);if(e.key==='Escape')renderUsersTable();};} }
@@ -957,8 +960,7 @@ function renderTransactions(){
     } 
     const amountColor=isDeposit?'var(--accent3)':'var(--warn)'; 
     const depositPhone = tx.depositPhone ? tx.depositPhone : '—';
-    const noteText = tx.note || '—';
-    return '<tr><td class="mono" style="font-size:11px;">'+(tx.date||'—')+'</td><td><strong>'+(tx.username||'—')+'</strong></td><td><span class="badge '+(isDeposit?'badge-approved':'badge-pending')+'">'+tx.type+'</span></td><td class="mono" style="color:'+amountColor+';">'+fmt(Math.abs(tx.amount||0))+'</td><td class="mono" style="font-size:11px;">'+depositPhone+'</td><td style="font-size:11px;color:var(--muted);max-width:200px;">'+noteText+'</td><td><span style="font-size:11px;font-weight:700;color:'+statusColor+';">'+statusText+'</span></td></tr>'; 
+    return '<tr><td class="mono" style="font-size:11px;">'+(tx.date||'—')+'</td><td><strong>'+(tx.username||'—')+'</strong></td><td><span class="badge '+(isDeposit?'badge-approved':'badge-pending')+'">'+tx.type+'</span></td><td class="mono" style="color:'+amountColor+';">'+fmt(Math.abs(tx.amount||0))+'</td><td><td class="mono" style="font-size:11px;">'+depositPhone+'</td><td><td style="font-size:11px;color:var(--muted);max-width:200px;">'+(tx.note||'—')+'</td><td><span style="font-size:11px;font-weight:700;color:'+statusColor+';">'+statusText+'</span></td>'; 
   }).join(''); 
 }
 
@@ -974,7 +976,7 @@ let allWithdrawals = {};
 function updateWithdrawalsBadge(){ const count=Object.values(allWithdrawals).filter(v=>v.status==='pending').length; const badge=document.getElementById('withdrawals-nav-badge'); if(!badge) return; if(count>0){ badge.textContent=count; badge.style.display='inline-flex'; } else { badge.style.display='none'; } }
 function renderWithdrawalsStats(){ const vals=Object.values(allWithdrawals); const pending=vals.filter(v=>v.status==='pending'); const approved=vals.filter(v=>v.status==='approved'); const pendingAmt=pending.reduce((s,v)=>s+(v.amount||0),0); const e1=document.getElementById('wd-stat-pending'); const e2=document.getElementById('wd-stat-approved'); const e3=document.getElementById('wd-stat-amount'); if(e1)e1.textContent=pending.length; if(e2)e2.textContent=approved.length; if(e3)e3.textContent=fmt(pendingAmt); }
 function filterWithdrawals(f){ wdFilter=f; ['pending','approved','rejected','all'].forEach(t=>{ const b=document.getElementById('wdf-'+t); if(b)b.style.opacity=t===f?'1':'0.5'; }); renderWithdrawalsTable(); }
-function renderWithdrawalsTable(){ const tbody=document.getElementById('wd-table-body'); const countEl=document.getElementById('wd-count'); if(!tbody) return; let entries=Object.entries(allWithdrawals); if(wdFilter!=='all') entries=entries.filter(([k,v])=>v.status===wdFilter); entries.sort((a,b)=>b[0].localeCompare(a[0])); if(countEl) countEl.textContent=entries.length+' requests'; if(!entries.length){ tbody.innerHTML='<tr class="empty-row"><td colspan="7">No withdrawal requests yet<\/tr>'; return; } tbody.innerHTML=entries.map(([k,v])=>{ const sc=v.status==='approved'?'var(--accent3)':v.status==='rejected'?'var(--warn)':'var(--gold)'; const si=v.status==='approved'?'✅ Approved':v.status==='rejected'?'❌ Rejected':'⏳ Pending'; const fee=Math.round((v.amount||0)*0.10); const sendAmt=v.sendAmount||(v.amount-fee); const actions=v.status==='pending'?'<button class="btn btn-approve" onclick="approveWithdrawal(\''+k+'\',\''+(v.username||'')+'\','+(v.amount||0)+','+sendAmt+',\''+(v.txKey||k)+'\')">✅ Approve</button><button class="btn btn-reject" onclick="rejectWithdrawal(\''+k+'\',\''+(v.username||'')+'\','+(v.amount||0)+',\''+(v.txKey||k)+'\')">❌ Reject</button>':'<span style="font-size:11px;color:var(--muted);">—</span>'; return '<tr><td class="mono" style="font-size:11px;">'+(v.date||'—')+'</td><td><strong>'+(v.username||'—')+'</strong></td><td class="mono">'+(v.phone||(allUsers[safeKey(v.username||'')]?.phone||'—'))+'</td><td class="mono" style="color:var(--warn);font-weight:800;">'+fmt(v.amount)+'</td><td class="mono" style="color:var(--accent3);">'+fmt(sendAmt)+'</td><td><span style="font-size:11px;font-weight:700;color:'+sc+';">'+si+'</span></td><td style="display:flex;gap:6px;flex-wrap:wrap;">'+actions+'</td></tr>'; }).join(''); }
+function renderWithdrawalsTable(){ const tbody=document.getElementById('wd-table-body'); const countEl=document.getElementById('wd-count'); if(!tbody) return; let entries=Object.entries(allWithdrawals); if(wdFilter!=='all') entries=entries.filter(([k,v])=>v.status===wdFilter); entries.sort((a,b)=>b[0].localeCompare(a[0])); if(countEl) countEl.textContent=entries.length+' requests'; if(!entries.length){ tbody.innerHTML='<tr class="empty-row"><td colspan="7">No withdrawal requests yet<\/tr>'; return; } tbody.innerHTML=entries.map(([k,v])=>{ const sc=v.status==='approved'?'var(--accent3)':v.status==='rejected'?'var(--warn)':'var(--gold)'; const si=v.status==='approved'?'✅ Approved':v.status==='rejected'?'❌ Rejected':'⏳ Pending'; const fee=Math.round((v.amount||0)*0.10); const sendAmt=v.sendAmount||(v.amount-fee); const actions=v.status==='pending'?'<button class="btn btn-approve" onclick="approveWithdrawal(\''+k+'\',\''+(v.username||'')+'\','+(v.amount||0)+','+sendAmt+',\''+(v.txKey||k)+'\')">✅ Approve</button><button class="btn btn-reject" onclick="rejectWithdrawal(\''+k+'\',\''+(v.username||'')+'\','+(v.amount||0)+',\''+(v.txKey||k)+'\')">❌ Reject</button>':'<span style="font-size:11px;color:var(--muted);">—</span>'; return '<tr><td class="mono" style="font-size:11px;">'+(v.date||'—')+'</td><td><strong>'+(v.username||'—')+'</strong></td><td><td class="mono">'+(v.phone||(allUsers[safeKey(v.username||'')]?.phone||'—'))+'</td><td><td class="mono" style="color:var(--warn);font-weight:800;">'+fmt(v.amount)+'</td><td><td class="mono" style="color:var(--accent3);">'+fmt(sendAmt)+'</td><td><span style="font-size:11px;font-weight:700;color:'+sc+';">'+si+'</span></td><td style="display:flex;gap:6px;flex-wrap:wrap;">'+actions+'</tr>'; }).join(''); }
 function deleteAllUsers(){ if(!confirm('⚠️ DELETE ALL USERS? This cannot be undone!')) return; if(!confirm('Are you absolutely sure? All user accounts will be permanently deleted.')) return; db.ref('users').remove(); toast('🗑️ All users deleted','#f87171'); }
 function loadSettingsUI(){ const s=allSettings; document.getElementById('wa-group-input').value=s.waGroup||''; document.getElementById('wa-support-input').value=s.waSupport||''; document.getElementById('wa-number-input').value=s.waNumber||'700000000'; document.getElementById('with-charge-input').value=s.withdrawCharge||10; document.getElementById('ref-l1-input').value=s.refL1||10; document.getElementById('ref-l2-input').value=s.refL2||3; document.getElementById('ref-l3-input').value=s.refL3||1; document.getElementById('min-deposit-input').value=s.minDeposit||10000; document.getElementById('min-withdraw-input').value=s.minWithdraw||5000; const apiKeyInp=document.getElementById('marz-api-key-input'); if(s.marzApiKey && !apiKeyInp.value) apiKeyInp.value=s.marzApiKey; const badge=document.getElementById('api-status-badge'); if(s.marzApiKey && s.marzApiKey.length>5){ badge.className='api-status-badge set'; badge.textContent='✅ API Key Set'; } else { badge.className='api-status-badge notset'; badge.textContent='⚠️ Not Set — Payments Disabled'; } const ls=document.getElementById('lock-status'); if(ls){ ls.textContent='Status: Withdrawals are '+(s.withdrawLocked?'🔒 LOCKED':'🔓 OPEN'); ls.style.color=s.withdrawLocked?'var(--warn)':'var(--accent3)'; } const ms=document.getElementById('manual-status'); if(ms){ ms.textContent='Mode: '+(s.withdrawManual?'🔴 Manual Approval — Admin must approve each withdrawal':'🟢 Auto-Process — MarzPay handles payouts automatically'); ms.style.color=s.withdrawManual?'var(--warn)':'var(--accent3)'; } }
 function saveWaNumber(){ const val=document.getElementById('wa-number-input').value.trim().replace(/\D/g,''); if(val && val.length>=9){ db.ref('settings/waNumber').set(val); toast('✅ WhatsApp number saved'); } else { toast('Enter a valid phone number (9 digits)','#f87171'); } }
@@ -1016,9 +1018,9 @@ async function approveWithdrawal(reqKey, username, amount, sendAmount, txKey){
       await callMarzSendAdmin(phone, sendAmount, reference, 'Rich-Root Withdrawal — '+username);
       db.ref().update({
         ['users/'+safeKey(username)+'/withdrawn']: (allUsers[safeKey(username)]?.withdrawn||0)+amount,
-        ['users/'+safeKey(username)+'/transactions/'+txKey+'/status']: 'completed',
+        ['users/'+safeKey(username)+'/transactions/'+txKey+'/status']: 'successful',
         ['users/'+safeKey(username)+'/transactions/'+txKey+'/note']: 'Withdrawal Successful ✅ — sent to '+phone,
-        ['pendingWithdrawals/'+reqKey+'/status']: 'approved'
+        ['pendingWithdrawals/'+reqKey+'/status']: 'successful'
       });
       toast('✅ Withdrawal successful — MarzPay sent '+fmt(sendAmount)+' to '+username);
     } catch(err){
@@ -1026,49 +1028,15 @@ async function approveWithdrawal(reqKey, username, amount, sendAmount, txKey){
       db.ref().update({
         ['users/'+safeKey(username)+'/profitEarned']: curBal+amount,
         ['users/'+safeKey(username)+'/transactions/'+txKey+'/status']: 'failed',
-        ['users/'+safeKey(username)+'/transactions/'+txKey+'/note']: 'Withdrawal failed ❌ — MarzPay error: '+err.message,
+        ['users/'+safeKey(username)+'/transactions/'+txKey+'/note']: 'Withdrawal failed ❌ — funds refunded to your profits. Reason: '+err.message,
         ['pendingWithdrawals/'+reqKey+'/status']: 'failed'
       });
-      const notifKey = 'notif_wd_fail_'+Date.now();
-      db.ref('adminNotifications/'+notifKey).set({
-        type: 'withdrawal_failed',
-        username: username,
-        amount: amount,
-        reason: 'MarzPay error: '+err.message,
-        timestamp: new Date().toISOString(),
-        read: false,
-        message: '❌ Withdrawal failed for '+username+' ('+fmt(amount)+'). Reason: MarzPay error: '+err.message+'. Funds refunded.'
-      });
-      toast('❌ MarzPay failed: '+err.message+' — funds refunded to '+username,'#f87171');
+      toast('❌ MarzPay failed: '+err.message+' — profits refunded to '+username,'#f87171');
     }
   });
 }
 
-function rejectWithdrawal(reqKey, username, amount, txKey){ 
-  confirmAction('Reject Withdrawal?', 'Reject withdrawal of '+fmt(amount)+' for '+username+'? Full amount will be refunded to their profits.').then(confirmed=>{ 
-    if(confirmed){ 
-      const curBal = allUsers[safeKey(username)]?.profitEarned||0;
-      db.ref().update({
-        ['users/'+safeKey(username)+'/profitEarned']: curBal+amount,
-        ['users/'+safeKey(username)+'/transactions/'+txKey+'/status']: 'failed',
-        ['users/'+safeKey(username)+'/transactions/'+txKey+'/note']: 'Withdrawal Rejected ❌ by Admin',
-        ['pendingWithdrawals/'+reqKey+'/status']: 'rejected'
-      });
-      const notifKey = 'notif_wd_reject_'+Date.now();
-      db.ref('adminNotifications/'+notifKey).set({
-        type: 'withdrawal_rejected',
-        username: username,
-        amount: amount,
-        reason: 'Rejected by Admin',
-        timestamp: new Date().toISOString(),
-        read: false,
-        message: '❌ Withdrawal rejected for '+username+' ('+fmt(amount)+'). Reason: Rejected by Admin. Funds refunded.'
-      });
-      toast('✅ Rejected — full amount refunded to '+username);
-    } 
-  }); 
-}
-
+function rejectWithdrawal(reqKey, username, amount, txKey){ confirmAction('Reject Withdrawal?', 'Reject withdrawal of '+fmt(amount)+' for '+username+'? Full amount will be refunded to their profits.').then(confirmed=>{ if(confirmed){ db.ref().update({['users/'+safeKey(username)+'/profitEarned']:(allUsers[safeKey(username)]?.profitEarned||0)+amount, ['users/'+safeKey(username)+'/transactions/'+txKey+'/status']:'rejected', ['users/'+safeKey(username)+'/transactions/'+txKey+'/note']:'Withdrawal Rejected ❌ — funds refunded to your profits', ['pendingWithdrawals/'+reqKey+'/status']:'rejected'}); toast('✅ Rejected — full amount refunded to '+username); } }); }
 function deleteAllData(){ confirmAction('💥 DELETE ALL DATA?', 'This will wipe everything! This cannot be undone. Are you 100% sure?').then(confirmed=>{ if(confirmed){ db.ref('users').remove(); db.ref('pendingWithdrawals').remove(); db.ref('adminNotifications').remove(); db.ref('admins').remove(); toast('💥 All data deleted','#f87171'); } }); }
 
 function searchDebitUser(){ const q=document.getElementById('debit-search').value.trim().toLowerCase(); const infoBox=document.getElementById('debit-user-info'); const notFound=document.getElementById('debit-not-found'); debitTargetUser=null; infoBox.style.display='none'; notFound.style.display='none'; document.getElementById('debit-preview').style.display='none'; if(!q) return; const found=Object.values(allUsers).find(u=>(u.username||'').toLowerCase()===q); if(found){ debitTargetUser=found; document.getElementById('debit-user-name').textContent=found.username; document.getElementById('debit-user-phone').textContent=found.phone||'—'; const bal=found.profitEarned||0; const balEl=document.getElementById('debit-user-balance'); balEl.textContent=fmt(bal); balEl.style.color=bal<0?'var(--warn)':'var(--accent3)'; infoBox.style.display='block'; } else { notFound.style.display='block'; } }
