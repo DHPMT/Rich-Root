@@ -1046,6 +1046,11 @@ async function recoverPendingDeposit(txKey, tx){
 function initApp(){
   startSettingsListener();
   const savedUser = localStorage.getItem('rr_current_user');
+  
+  // Check URL parameters
+  const urlParams = new URLSearchParams(window.location.search);
+  const refParam = urlParams.get('ref');
+  
   if(savedUser){
     currentUsername = savedUser;
     dbGet('users/'+safeKey(savedUser)).then(userData => {
@@ -1065,9 +1070,21 @@ function initApp(){
     });
   } else {
     hideLoading();
-    const openReg=sessionStorage.getItem('rr_open_register');
-    if(openReg){ sessionStorage.removeItem('rr_open_register'); showAuth('register-page'); }
-    else showAuth('login-page');
+    // If referral link (?ref=username), show registration page
+    if(refParam){
+      showAuth('register-page');
+    } else {
+      // Check session storage for previous page choice
+      const openReg=sessionStorage.getItem('rr_open_register');
+      if(openReg){ 
+        sessionStorage.removeItem('rr_open_register'); 
+        showAuth('register-page'); 
+      }
+      else {
+        // Default to login page for direct domain access
+        showAuth('login-page');
+      }
+    }
   }
 }
 
