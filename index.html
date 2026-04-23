@@ -762,21 +762,33 @@ function safeKey(u){ return (u||'').replace(/[.#$\[\]/]/g,'_'); }
 let currentHistoryFilter = 'Deposit';
 
 // Avatar Generation
-function generateAvatarInitials(username){
-  if(!username) return '?';
-  const parts = username.split(/[\s._-]+/);
-  if(parts.length >= 2){
-    return (parts[0].charAt(0) + parts[1].charAt(0)).toUpperCase();
-  }
-  return username.substring(0,2).toUpperCase();
+// Avatar emoji collection
+const avatarEmojis = [
+  '👨‍🦱', '👨‍🦲', '👨‍🦳', '👨‍🦰',
+  '👩‍🦱', '👩‍🦲', '👩‍🦳', '👩‍🦰',
+  '🧔', '🧔‍♀️', '👨‍💼', '👩‍💼',
+  '👨‍🏫', '👩‍🏫', '👨‍💻', '👩‍💻',
+  '👨‍🎓', '👩‍🎓', '👨‍🏥', '👩‍🏥',
+  '👨‍🍳', '👩‍🍳', '👨‍🎨', '👩‍🎨',
+  '👨‍🏭', '👩‍🏭', '👨‍✈️', '👩‍✈️',
+  '👨‍🚀', '👩‍🚀', '👨‍🎬', '👩‍🎬'
+];
+
+function getAvatarEmoji(username){
+  if(!username) return '👤';
+  // Use username length to generate consistent avatar for same user
+  const charCode = username.charCodeAt(0) + username.length;
+  return avatarEmojis[charCode % avatarEmojis.length];
 }
 
 function createAvatarElement(username, sizeClass){
-  const initials = generateAvatarInitials(username);
+  const emoji = getAvatarEmoji(username);
   const div = document.createElement('div');
   div.className = `avatar ${sizeClass}`;
-  div.textContent = initials;
+  div.textContent = emoji;
   div.title = username;
+  div.style.background = 'transparent';
+  div.style.color = 'inherit';
   return div;
 }
 
