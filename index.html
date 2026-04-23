@@ -339,9 +339,9 @@ input[type="password"]{padding-right:46px;}
     <div class="auth-title">Welcome Back</div>
     <div class="auth-subtitle">Sign in to your investment account</div>
     <div class="field-group">
-      <label class="field-label">Username</label>
-      <div class="field-wrap"><span class="field-icon">👤</span><input type="text" id="login-username" placeholder="Enter username" autocomplete="username"></div>
-      <div class="field-error" id="login-user-err">Please enter your username</div>
+      <label class="field-label">Username, Email or Phone</label>
+      <div class="field-wrap"><span class="field-icon">👤</span><input type="text" id="login-username" placeholder="Enter username, email or phone" autocomplete="username"></div>
+      <div class="field-error" id="login-user-err">Please enter your username, email or phone</div>
     </div>
     <div class="field-group">
       <label class="field-label">Password</label>
@@ -368,6 +368,11 @@ input[type="password"]{padding-right:46px;}
       <label class="field-label">Username</label>
       <div class="field-wrap"><span class="field-icon">👤</span><input type="text" id="reg-username" placeholder="Choose a username" autocomplete="off"></div>
       <div class="field-error" id="reg-user-err">Username is required</div>
+    </div>
+    <div class="field-group">
+      <label class="field-label">Email</label>
+      <div class="field-wrap"><span class="field-icon">✉️</span><input type="email" id="reg-email" placeholder="Enter your email address" autocomplete="email"></div>
+      <div class="field-error" id="reg-email-err">Please enter a valid email</div>
     </div>
     <div class="field-group">
       <label class="field-label">Country</label>
@@ -846,6 +851,10 @@ function setErr(id,show,msg){
   else{el.classList.remove('show');}
 }
 function clearErrors(...ids){ ids.forEach(id=>setErr(id,false)); }
+function isValidEmail(email){
+  const emailRegex=/^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email);
+}
 function toggleEye(inputId,btn){
   const inp=document.getElementById(inputId);
   if(inp.type==='password'){inp.type='text';btn.textContent='🙈';}
@@ -1064,25 +1073,52 @@ function initApp(){
 
 function doLogin(){
   clearErrors('login-user-err','login-pw-err'); setErr('login-general-err',false);
-  const username=document.getElementById('login-username').value.trim();
+  const credential=document.getElementById('login-username').value.trim();
   const password=document.getElementById('login-password').value;
-  if(!username){setErr('login-user-err',true);return;}
+  if(!credential){setErr('login-user-err',true);return;}
   if(!password){setErr('login-pw-err',true);return;}
-  dbGet('users/'+safeKey(username)).then(userData => {
-    if(!userData||userData.password!==password){ setErr('login-general-err',true,'❌ Invalid username or password'); return; }
-    if(userData.locked){ setErr('login-general-err',true,'🔒 Your account has been locked. Contact support.'); return; }
-    currentUser=userData; currentUsername=username;
-    localStorage.setItem('rr_current_user',username);
-    loadDashboard(); showDashboard(); switchTab('home');
-    startUserListener(username);
+  
+  // Try to find user by username, email, or phone
+  dbGet('users').then(allUsers => {
+    let foundUser = null;
+    let foundUsername = null;
+    
+    if(allUsers){
+      for(let key in allUsers){
+        const user = allUsers[key];
+        if(user.username === credential || user.email === credential || user.phone === credential){
+          foundUser = user;
+          foundUsername = user.username;
+          break;
+        }
+      }
+    }
+    
+    if(!foundUser || foundUser.password !== password){
+      setErr('login-general-err',true,'❌ Invalid credentials');
+      return;
+    }
+    if(foundUser.locked){
+      setErr('login-general-err',true,'🔒 Your account has been locked. Contact support.');
+      return;
+    }
+    
+    currentUser = foundUser;
+    currentUsername = foundUsername;
+    localStorage.setItem('rr_current_user', foundUsername);
+    loadDashboard();
+    showDashboard();
+    switchTab('home');
+    startUserListener(foundUsername);
     runDailyProfits();
     startInactivityWatcher();
   });
 }
 
 function doRegister(){
-  clearErrors('reg-user-err','reg-country-err','reg-phone-err','reg-pw-err','reg-confirm-err','reg-general-err');
+  clearErrors('reg-user-err','reg-email-err','reg-country-err','reg-phone-err','reg-pw-err','reg-confirm-err','reg-general-err');
   const username=document.getElementById('reg-username').value.trim();
+  const email=document.getElementById('reg-email').value.trim();
   const country=document.getElementById('reg-country').value;
   const phoneDigits=document.getElementById('reg-phone').value.trim();
   const password=document.getElementById('reg-password').value;
@@ -1091,6 +1127,7 @@ function doRegister(){
   const refCode=urlParams.get('ref')||'John';
   let ok=true;
   if(!username){setErr('reg-user-err',true,'Username is required');ok=false;}
+  if(!email||!isValidEmail(email)){setErr('reg-email-err',true,'Please enter a valid email');ok=false;}
   if(!country){setErr('reg-country-err',true,'Please select your country');ok=false;}
   if(!phoneDigits||phoneDigits.length!==9||!phoneDigits.startsWith('7')){setErr('reg-phone-err',true,'Enter 9 digits starting with 7');ok=false;}
   if(!password||password.length<6){setErr('reg-pw-err',true,'Password must be at least 6 characters');ok=false;}
@@ -1102,7 +1139,7 @@ function doRegister(){
     if(existing){setErr('reg-user-err',true,'Username already taken');return;}
     const now=dateStr();
     const newUser={
-      username, password, country,
+      username, password, email, country,
       phone: fullPhone,
       balance:4000, invested:0, withdrawn:0, profitEarned:4000,
       activated:false, locked:false,
@@ -1131,7 +1168,7 @@ function doRegister(){
     } else if(refCode==='John'){
       dbUpdate('users/John/referrals/'+safeKey(username), {username,invested:0,level:1});
     }
-    ['reg-username','reg-phone','reg-password','reg-confirm'].forEach(id=>document.getElementById(id).value='');
+    ['reg-username','reg-email','reg-phone','reg-password','reg-confirm'].forEach(id=>document.getElementById(id).value='');
     document.getElementById('reg-country').value=''; updateRegPrefix(); checkStrength('');
     setTimeout(()=>showAuth('login-page'),1200);
   });

@@ -201,9 +201,9 @@ tbody td{padding:13px 16px;font-size:13px;vertical-align:middle;}
       <div class="auth-sub">Command Center Login</div>
     </div>
     <div class="f-group">
-      <label class="f-label">Username</label>
-      <div class="f-wrap"><span class="f-icon">👤</span><input type="text" class="f-input" id="login-username" placeholder="Enter username"></div>
-      <div class="f-err" id="login-user-err">Please enter username</div>
+      <label class="f-label">Username or Email</label>
+      <div class="f-wrap"><span class="f-icon">👤</span><input type="text" class="f-input" id="login-username" placeholder="Enter username or email"></div>
+      <div class="f-err" id="login-user-err">Please enter username or email</div>
     </div>
     <div class="f-group">
       <label class="f-label">Password</label>
@@ -248,6 +248,11 @@ tbody td{padding:13px 16px;font-size:13px;vertical-align:middle;}
       <label class="f-label">Username</label>
       <div class="f-wrap"><span class="f-icon">👤</span><input type="text" class="f-input" id="reg-username" placeholder="Choose username"></div>
       <div class="f-err" id="reg-username-err">Username required</div>
+    </div>
+    <div class="f-group">
+      <label class="f-label">Email</label>
+      <div class="f-wrap"><span class="f-icon">✉️</span><input type="email" class="f-input" id="reg-email" placeholder="Enter email address"></div>
+      <div class="f-err" id="reg-email-err">Valid email required</div>
     </div>
     <div class="f-group">
       <label class="f-label">Password (min. 9 characters)</label>
@@ -559,9 +564,9 @@ function checkAdminSession(){
 async function adminLogin(){
   clearErrors('login-user-err','login-pw-err');
   document.getElementById('login-general-err').classList.remove('show');
-  const username = document.getElementById('login-username').value.trim();
+  const credential = document.getElementById('login-username').value.trim();
   const password = document.getElementById('login-password').value;
-  if(!username){ setErr('login-user-err',true); return; }
+  if(!credential){ setErr('login-user-err',true); return; }
   if(!password){ setErr('login-pw-err',true); return; }
   
   const admins = await dbGet('admins');
@@ -573,14 +578,14 @@ async function adminLogin(){
   
   let foundAdmin = null;
   for(const key in admins){
-    if(admins[key].username === username && admins[key].password === password){
+    if((admins[key].username === credential || admins[key].email === credential) && admins[key].password === password){
       foundAdmin = admins[key];
       break;
     }
   }
   
   if(!foundAdmin){
-    document.getElementById('login-general-err').textContent = '❌ Invalid username or password';
+    document.getElementById('login-general-err').textContent = '❌ Invalid credentials';
     document.getElementById('login-general-err').classList.add('show');
     return;
   }
@@ -595,11 +600,12 @@ async function adminLogin(){
 }
 
 async function adminRegister(){
-  clearErrors('reg-phone-err','reg-position-err','reg-username-err','reg-pw-err','reg-confirm-err','reg-second-pw-err','reg-second-confirm-err','reg-general-err');
+  clearErrors('reg-phone-err','reg-position-err','reg-username-err','reg-email-err','reg-pw-err','reg-confirm-err','reg-second-pw-err','reg-second-confirm-err','reg-general-err');
   
   const phoneDigits = document.getElementById('reg-phone').value.trim();
   const position = document.getElementById('reg-position').value;
   const username = document.getElementById('reg-username').value.trim();
+  const email = document.getElementById('reg-email').value.trim();
   const password = document.getElementById('reg-password').value;
   const confirm = document.getElementById('reg-confirm').value;
   const secondPw = document.getElementById('reg-second-pw').value;
@@ -609,6 +615,7 @@ async function adminRegister(){
   if(!phoneDigits || phoneDigits.length!==9 || !phoneDigits.startsWith('7')){ setErr('reg-phone-err',true,'Enter 9 digits starting with 7'); ok=false; }
   if(!position){ setErr('reg-position-err',true,'Please select your position'); ok=false; }
   if(!username){ setErr('reg-username-err',true,'Username is required'); ok=false; }
+  if(!email || !isValidEmail(email)){ setErr('reg-email-err',true,'Please enter a valid email'); ok=false; }
   if(!password || password.length<9){ setErr('reg-pw-err',true,'Password must be at least 9 characters'); ok=false; }
   if(password !== confirm){ setErr('reg-confirm-err',true,'Passwords do not match'); ok=false; }
   if(!secondPw || secondPw.length<9){ setErr('reg-second-pw-err',true,'Second password must be at least 9 characters'); ok=false; }
@@ -636,13 +643,14 @@ async function adminRegister(){
   }
   
   const adminKey = 'admin_' + Date.now();
-  const newAdmin = { username, password, secondPassword: secondPw, phone: fullPhone, position, registeredAt: dateStr() };
+  const newAdmin = { username, password, email, secondPassword: secondPw, phone: fullPhone, position, registeredAt: dateStr() };
   await dbSet('admins/'+adminKey, newAdmin);
   toast('✅ Admin registered successfully! You can now login.');
   showLoginForm();
   document.getElementById('reg-phone').value='';
   document.getElementById('reg-position').value='';
   document.getElementById('reg-username').value='';
+  document.getElementById('reg-email').value='';
   document.getElementById('reg-password').value='';
   document.getElementById('reg-confirm').value='';
   document.getElementById('reg-second-pw').value='';
@@ -915,6 +923,10 @@ function startNotifListener(){ db.ref('adminNotifications').on('value', snap=>{ 
 
 function setErr(id,show,msg){ const el=document.getElementById(id); if(!el)return; if(show){el.classList.add('show');if(msg)el.textContent=msg;} else{el.classList.remove('show');} }
 function clearErrors(...ids){ ids.forEach(id=>setErr(id,false)); }
+function isValidEmail(email){
+  const emailRegex=/^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email);
+}
 
 document.getElementById('loading-screen').style.display='none';
 checkAdminSession();
