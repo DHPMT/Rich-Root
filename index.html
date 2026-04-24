@@ -8,9 +8,6 @@
 <meta property="og:title" content="Rich-Root — Grow Your Wealth">
 <meta property="og:description" content="Uganda's Premium Investment Wallet. Earn 10% daily returns. Join thousands of investors growing their money today!">
 <meta property="og:site_name" content="Rich-Root">
-<meta property="og:image" content="https://raw.githubusercontent.com/dhpmt/Rich-Root/main/logo.png">
-<meta property="og:image:width" content="1200">
-<meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Rich-Root — Grow Your Wealth">
 <meta name="twitter:description" content="Uganda's Premium Investment Wallet. Earn 10% daily returns for 72 days!">
@@ -318,12 +315,6 @@ input[type="password"]{padding-right:46px;}
 .loading-spinner{width:48px;height:48px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;}
 @keyframes spin{to{transform:rotate(360deg)}}
 .loading-text{font-size:14px;color:var(--muted);}
-
-/* Footer */
-.footer{margin-top:40px;padding:24px 16px;border-top:1px solid var(--border);background:var(--surface);text-align:center;}
-.footer-divider{height:2px;background:linear-gradient(90deg,transparent,var(--accent),transparent);margin:16px 0;}
-.footer-copyright{font-size:12px;font-weight:600;color:var(--text);margin-bottom:6px;}
-.footer-subtitle{font-size:11px;color:var(--muted);line-height:1.6;}
 </style>
 </head>
 <body>
@@ -345,9 +336,9 @@ input[type="password"]{padding-right:46px;}
     <div class="auth-title">Welcome Back</div>
     <div class="auth-subtitle">Sign in to your investment account</div>
     <div class="field-group">
-      <label class="field-label">Username, Email or Phone</label>
-      <div class="field-wrap"><span class="field-icon">👤</span><input type="text" id="login-username" placeholder="Enter username, email or phone" autocomplete="username"></div>
-      <div class="field-error" id="login-user-err">Please enter your username, email or phone</div>
+      <label class="field-label">Username</label>
+      <div class="field-wrap"><span class="field-icon">👤</span><input type="text" id="login-username" placeholder="Enter username" autocomplete="username"></div>
+      <div class="field-error" id="login-user-err">Please enter your username</div>
     </div>
     <div class="field-group">
       <label class="field-label">Password</label>
@@ -374,11 +365,6 @@ input[type="password"]{padding-right:46px;}
       <label class="field-label">Username</label>
       <div class="field-wrap"><span class="field-icon">👤</span><input type="text" id="reg-username" placeholder="Choose a username" autocomplete="off"></div>
       <div class="field-error" id="reg-user-err">Username is required</div>
-    </div>
-    <div class="field-group">
-      <label class="field-label">Email</label>
-      <div class="field-wrap"><span class="field-icon">✉️</span><input type="email" id="reg-email" placeholder="Enter your email address" autocomplete="email"></div>
-      <div class="field-error" id="reg-email-err">Please enter a valid email</div>
     </div>
     <div class="field-group">
       <label class="field-label">Country</label>
@@ -464,7 +450,7 @@ input[type="password"]{padding-right:46px;}
       </div>
     </div>
     <div class="section">
-      <button class="wa-btn" onclick="openWaGroup()">?? Join Our WhatsApp Community</button>
+      <button class="wa-btn" onclick="openWaGroup()">💬 Join Our WhatsApp Community</button>
     </div>
   </div>
 
@@ -688,12 +674,6 @@ input[type="password"]{padding-right:46px;}
     <div class="nav-item" onclick="switchTab('plan')"><span class="nav-icon">📊</span><span class="nav-label">TABLE</span></div>
     <div class="nav-item" onclick="switchTab('profile')"><span class="nav-icon">👤</span><span class="nav-label">MYSELF</span></div>
   </nav>
-
-  <div class="footer">
-    <div class="footer-divider"></div>
-    <div class="footer-copyright">© Copyright 2026 Rich-Root. All Rights Reserved</div>
-    <div class="footer-subtitle">Rich-Root is Uganda's Premium Investment Wallet</div>
-  </div>
 </div>
 
 <!-- MENU -->
@@ -774,33 +754,21 @@ function safeKey(u){ return (u||'').replace(/[.#$\[\]/]/g,'_'); }
 let currentHistoryFilter = 'Deposit';
 
 // Avatar Generation
-// Avatar emoji collection
-const avatarEmojis = [
-  '👨‍🦱', '👨‍🦲', '👨‍🦳', '👨‍🦰',
-  '👩‍🦱', '👩‍🦲', '👩‍🦳', '👩‍🦰',
-  '🧔', '🧔‍♀️', '👨‍💼', '👩‍💼',
-  '👨‍🏫', '👩‍🏫', '👨‍💻', '👩‍💻',
-  '👨‍🎓', '👩‍🎓', '👨‍🏥', '👩‍🏥',
-  '👨‍🍳', '👩‍🍳', '👨‍🎨', '👩‍🎨',
-  '👨‍🏭', '👩‍🏭', '👨‍✈️', '👩‍✈️',
-  '👨‍🚀', '👩‍🚀', '👨‍🎬', '👩‍🎬'
-];
-
-function getAvatarEmoji(username){
-  if(!username) return '👤';
-  // Use username length to generate consistent avatar for same user
-  const charCode = username.charCodeAt(0) + username.length;
-  return avatarEmojis[charCode % avatarEmojis.length];
+function generateAvatarInitials(username){
+  if(!username) return '?';
+  const parts = username.split(/[\s._-]+/);
+  if(parts.length >= 2){
+    return (parts[0].charAt(0) + parts[1].charAt(0)).toUpperCase();
+  }
+  return username.substring(0,2).toUpperCase();
 }
 
 function createAvatarElement(username, sizeClass){
-  const emoji = getAvatarEmoji(username);
+  const initials = generateAvatarInitials(username);
   const div = document.createElement('div');
   div.className = `avatar ${sizeClass}`;
-  div.textContent = emoji;
+  div.textContent = initials;
   div.title = username;
-  div.style.background = 'transparent';
-  div.style.color = 'inherit';
   return div;
 }
 
@@ -875,10 +843,6 @@ function setErr(id,show,msg){
   else{el.classList.remove('show');}
 }
 function clearErrors(...ids){ ids.forEach(id=>setErr(id,false)); }
-function isValidEmail(email){
-  const emailRegex=/^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  return emailRegex.test(email);
-}
 function toggleEye(inputId,btn){
   const inp=document.getElementById(inputId);
   if(inp.type==='password'){inp.type='text';btn.textContent='🙈';}
@@ -1070,11 +1034,6 @@ async function recoverPendingDeposit(txKey, tx){
 function initApp(){
   startSettingsListener();
   const savedUser = localStorage.getItem('rr_current_user');
-  
-  // Check URL parameters
-  const urlParams = new URLSearchParams(window.location.search);
-  const refParam = urlParams.get('ref');
-  
   if(savedUser){
     currentUsername = savedUser;
     dbGet('users/'+safeKey(savedUser)).then(userData => {
@@ -1094,72 +1053,33 @@ function initApp(){
     });
   } else {
     hideLoading();
-    // If referral link (?ref=username), show registration page
-    if(refParam){
-      showAuth('register-page');
-    } else {
-      // Check session storage for previous page choice
-      const openReg=sessionStorage.getItem('rr_open_register');
-      if(openReg){ 
-        sessionStorage.removeItem('rr_open_register'); 
-        showAuth('register-page'); 
-      }
-      else {
-        // Default to login page for direct domain access
-        showAuth('login-page');
-      }
-    }
+    const openReg=sessionStorage.getItem('rr_open_register');
+    if(openReg){ sessionStorage.removeItem('rr_open_register'); showAuth('register-page'); }
+    else showAuth('login-page');
   }
 }
 
 function doLogin(){
   clearErrors('login-user-err','login-pw-err'); setErr('login-general-err',false);
-  const credential=document.getElementById('login-username').value.trim();
+  const username=document.getElementById('login-username').value.trim();
   const password=document.getElementById('login-password').value;
-  if(!credential){setErr('login-user-err',true);return;}
+  if(!username){setErr('login-user-err',true);return;}
   if(!password){setErr('login-pw-err',true);return;}
-  
-  // Try to find user by username, email, or phone
-  dbGet('users').then(allUsers => {
-    let foundUser = null;
-    let foundUsername = null;
-    
-    if(allUsers){
-      for(let key in allUsers){
-        const user = allUsers[key];
-        if(user.username === credential || user.email === credential || user.phone === credential){
-          foundUser = user;
-          foundUsername = user.username;
-          break;
-        }
-      }
-    }
-    
-    if(!foundUser || foundUser.password !== password){
-      setErr('login-general-err',true,'❌ Invalid credentials');
-      return;
-    }
-    if(foundUser.locked){
-      setErr('login-general-err',true,'🔒 Your account has been locked. Contact support.');
-      return;
-    }
-    
-    currentUser = foundUser;
-    currentUsername = foundUsername;
-    localStorage.setItem('rr_current_user', foundUsername);
-    loadDashboard();
-    showDashboard();
-    switchTab('home');
-    startUserListener(foundUsername);
+  dbGet('users/'+safeKey(username)).then(userData => {
+    if(!userData||userData.password!==password){ setErr('login-general-err',true,'❌ Invalid username or password'); return; }
+    if(userData.locked){ setErr('login-general-err',true,'🔒 Your account has been locked. Contact support.'); return; }
+    currentUser=userData; currentUsername=username;
+    localStorage.setItem('rr_current_user',username);
+    loadDashboard(); showDashboard(); switchTab('home');
+    startUserListener(username);
     runDailyProfits();
     startInactivityWatcher();
   });
 }
 
 function doRegister(){
-  clearErrors('reg-user-err','reg-email-err','reg-country-err','reg-phone-err','reg-pw-err','reg-confirm-err','reg-general-err');
+  clearErrors('reg-user-err','reg-country-err','reg-phone-err','reg-pw-err','reg-confirm-err','reg-general-err');
   const username=document.getElementById('reg-username').value.trim();
-  const email=document.getElementById('reg-email').value.trim();
   const country=document.getElementById('reg-country').value;
   const phoneDigits=document.getElementById('reg-phone').value.trim();
   const password=document.getElementById('reg-password').value;
@@ -1168,7 +1088,6 @@ function doRegister(){
   const refCode=urlParams.get('ref')||'John';
   let ok=true;
   if(!username){setErr('reg-user-err',true,'Username is required');ok=false;}
-  if(!email||!isValidEmail(email)){setErr('reg-email-err',true,'Please enter a valid email');ok=false;}
   if(!country){setErr('reg-country-err',true,'Please select your country');ok=false;}
   if(!phoneDigits||phoneDigits.length!==9||!phoneDigits.startsWith('7')){setErr('reg-phone-err',true,'Enter 9 digits starting with 7');ok=false;}
   if(!password||password.length<6){setErr('reg-pw-err',true,'Password must be at least 6 characters');ok=false;}
@@ -1180,9 +1099,9 @@ function doRegister(){
     if(existing){setErr('reg-user-err',true,'Username already taken');return;}
     const now=dateStr();
     const newUser={
-      username, password, email, country,
+      username, password, country,
       phone: fullPhone,
-      balance:4000, invested:0, withdrawn:0, profitEarned:4000,
+      balance:0, invested:0, withdrawn:0, profitEarned:4000,
       activated:false, locked:false,
       referredBy:refCode,
       joinedDate:new Date().getFullYear().toString(),
@@ -1209,7 +1128,7 @@ function doRegister(){
     } else if(refCode==='John'){
       dbUpdate('users/John/referrals/'+safeKey(username), {username,invested:0,level:1});
     }
-    ['reg-username','reg-email','reg-phone','reg-password','reg-confirm'].forEach(id=>document.getElementById(id).value='');
+    ['reg-username','reg-phone','reg-password','reg-confirm'].forEach(id=>document.getElementById(id).value='');
     document.getElementById('reg-country').value=''; updateRegPrefix(); checkStrength('');
     setTimeout(()=>showAuth('login-page'),1200);
   });
