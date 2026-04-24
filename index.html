@@ -318,6 +318,12 @@ input[type="password"]{padding-right:46px;}
 .loading-spinner{width:48px;height:48px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;}
 @keyframes spin{to{transform:rotate(360deg)}}
 .loading-text{font-size:14px;color:var(--muted);}
+
+/* Footer */
+.footer{margin-top:40px;padding:24px 16px;border-top:1px solid var(--border);background:var(--surface);text-align:center;}
+.footer-divider{height:2px;background:linear-gradient(90deg,transparent,var(--accent),transparent);margin:16px 0;}
+.footer-copyright{font-size:12px;font-weight:600;color:var(--text);margin-bottom:6px;}
+.footer-subtitle{font-size:11px;color:var(--muted);line-height:1.6;}
 </style>
 </head>
 <body>
@@ -682,6 +688,12 @@ input[type="password"]{padding-right:46px;}
     <div class="nav-item" onclick="switchTab('plan')"><span class="nav-icon">📊</span><span class="nav-label">TABLE</span></div>
     <div class="nav-item" onclick="switchTab('profile')"><span class="nav-icon">👤</span><span class="nav-label">MYSELF</span></div>
   </nav>
+
+  <div class="footer">
+    <div class="footer-divider"></div>
+    <div class="footer-copyright">© Copyright 2026 Rich-Root. All Rights Reserved</div>
+    <div class="footer-subtitle">Rich-Root is Uganda's Premium Investment Wallet</div>
+  </div>
 </div>
 
 <!-- MENU -->
