@@ -1261,37 +1261,49 @@ function addDays(d,n){ const r=new Date(d); r.setUTCDate(r.getUTCDate()+n); retu
 
 function runDailyProfits(){
   if(!currentUser||!currentUsername) return;
-  const deposits=currentUser.deposits?Object.entries(currentUser.deposits):[];
-  if(!deposits.length) return;
-  const todayKey=getDateKey(new Date());
-  let totalProfit=0;
-  let anyPaid=false;
-  const updates = {};
-  for(const [key,dep] of deposits){
-    let daysRun=dep.daysRun||0;
-    if(daysRun>=72) continue;
-    const startDate=new Date(dep.startDate);
-    const lastPaid=dep.lastPaidDate||getDateKey(startDate);
-    let cursor=addDays(new Date(lastPaid),1);
-    while(getDateKey(cursor)<=todayKey && daysRun<72){
-      const dateKey=getDateKey(cursor);
-      const profit=Math.floor(dep.amount*0.10);
-      totalProfit+=profit;
-      const txKey='txp_'+dateKey.replace(/-/g,'')+'_'+key.slice(-5);
-      updates['transactions/'+txKey]={type:'Profit',amount:profit,note:'Daily 10% profit — Day '+(daysRun+1)+'/72',date:dateKey+' 00:00'};
-      updates['deposits/'+key+'/daysRun']=daysRun+1;
-      updates['deposits/'+key+'/lastPaidDate']=dateKey;
-      daysRun++; anyPaid=true;
-      cursor=addDays(cursor,1);
+  
+  // Check if user has active investment (stake)
+  const investmentAmount = currentUser.stake || 0;
+  if(investmentAmount <= 0) return;
+  
+  const todayKey = getDateKey(new Date());
+  const lastProfitDate = currentUser.lastProfitDate || null;
+  
+  // If user already received profit today, skip
+  if(lastProfitDate === todayKey) return;
+  
+  // Calculate 10% daily profit on investment
+  const dailyProfit = Math.floor(investmentAmount * 0.10);
+  
+  // Get current day count (from account creation or last reset)
+  let dayCount = currentUser.dayCount || 1;
+  if(dayCount > 72) return; // Stop after 72 days
+  
+  // Update user with daily profit
+  const updates = {
+    balance: (currentUser.balance || 0) + dailyProfit,
+    lastProfitDate: todayKey,
+    dayCount: dayCount + 1,
+    [`transactions/tx_daily_profit_${Date.now()}`]: {
+      type: 'Profit',
+      amount: dailyProfit,
+      note: `Daily 10% profit — Day ${dayCount}/72 (Based on UGX ${fmt(investmentAmount)} investment)`,
+      date: todayKey + ' 00:00',
+      status: 'successful'
     }
-  }
-  if(anyPaid){
-    updates['balance']=(currentUser.balance||0)+totalProfit;
-    dbUpdate('users/'+safeKey(currentUsername), updates);
-    currentUser.balance=(currentUser.balance||0)+totalProfit;
-    updateBalanceUI();
-    renderHistory();
-  }
+  };
+  
+  // Apply updates to Firebase and local state
+  dbUpdate('users/' + safeKey(currentUsername), updates);
+  currentUser.balance = (currentUser.balance || 0) + dailyProfit;
+  currentUser.lastProfitDate = todayKey;
+  currentUser.dayCount = dayCount + 1;
+  
+  updateBalanceUI();
+  renderHistory();
+  
+  // Show notification
+  showPopup('📈 Daily 10% profit: +' + fmt(dailyProfit), 3000);
 }
 
 function doLogout(){
