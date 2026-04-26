@@ -8,6 +8,9 @@
 <meta property="og:title" content="Rich-Root — Grow Your Wealth">
 <meta property="og:description" content="Uganda's Premium Investment Wallet. Earn 10% daily returns. Join thousands of investors growing their money today!">
 <meta property="og:site_name" content="Rich-Root">
+<meta property="og:image" content="https://raw.githubusercontent.com/dhpmt/Rich-Root/main/logo.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Rich-Root — Grow Your Wealth">
 <meta name="twitter:description" content="Uganda's Premium Investment Wallet. Earn 10% daily returns for 72 days!">
@@ -315,6 +318,12 @@ input[type="password"]{padding-right:46px;}
 .loading-spinner{width:48px;height:48px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;}
 @keyframes spin{to{transform:rotate(360deg)}}
 .loading-text{font-size:14px;color:var(--muted);}
+
+/* Footer */
+.footer{margin-top:40px;padding:24px 16px;border-top:1px solid var(--border);background:var(--surface);text-align:center;}
+.footer-divider{height:2px;background:linear-gradient(90deg,transparent,var(--accent),transparent);margin:16px 0;}
+.footer-copyright{font-size:12px;font-weight:600;color:var(--text);margin-bottom:6px;}
+.footer-subtitle{font-size:11px;color:var(--muted);line-height:1.6;}
 </style>
 </head>
 <body>
@@ -336,9 +345,9 @@ input[type="password"]{padding-right:46px;}
     <div class="auth-title">Welcome Back</div>
     <div class="auth-subtitle">Sign in to your investment account</div>
     <div class="field-group">
-      <label class="field-label">Username</label>
-      <div class="field-wrap"><span class="field-icon">👤</span><input type="text" id="login-username" placeholder="Enter username" autocomplete="username"></div>
-      <div class="field-error" id="login-user-err">Please enter your username</div>
+      <label class="field-label">Username, Email or Phone</label>
+      <div class="field-wrap"><span class="field-icon">👤</span><input type="text" id="login-username" placeholder="Enter username, email or phone" autocomplete="username"></div>
+      <div class="field-error" id="login-user-err">Please enter your username, email or phone</div>
     </div>
     <div class="field-group">
       <label class="field-label">Password</label>
@@ -365,6 +374,11 @@ input[type="password"]{padding-right:46px;}
       <label class="field-label">Username</label>
       <div class="field-wrap"><span class="field-icon">👤</span><input type="text" id="reg-username" placeholder="Choose a username" autocomplete="off"></div>
       <div class="field-error" id="reg-user-err">Username is required</div>
+    </div>
+    <div class="field-group">
+      <label class="field-label">Email</label>
+      <div class="field-wrap"><span class="field-icon">✉️</span><input type="email" id="reg-email" placeholder="Enter your email address" autocomplete="email"></div>
+      <div class="field-error" id="reg-email-err">Please enter a valid email</div>
     </div>
     <div class="field-group">
       <label class="field-label">Country</label>
@@ -450,7 +464,7 @@ input[type="password"]{padding-right:46px;}
       </div>
     </div>
     <div class="section">
-      <button class="wa-btn" onclick="openWaGroup()">💬 Join Our WhatsApp Community</button>
+      <button class="wa-btn" onclick="openWaGroup()">?? Join Our WhatsApp Community</button>
     </div>
   </div>
 
@@ -674,6 +688,12 @@ input[type="password"]{padding-right:46px;}
     <div class="nav-item" onclick="switchTab('plan')"><span class="nav-icon">📊</span><span class="nav-label">TABLE</span></div>
     <div class="nav-item" onclick="switchTab('profile')"><span class="nav-icon">👤</span><span class="nav-label">MYSELF</span></div>
   </nav>
+
+  <div class="footer">
+    <div class="footer-divider"></div>
+    <div class="footer-copyright">© Copyright 2026 Rich-Root. All Rights Reserved</div>
+    <div class="footer-subtitle">Rich-Root is Uganda's Premium Investment Wallet</div>
+  </div>
 </div>
 
 <!-- MENU -->
@@ -754,21 +774,33 @@ function safeKey(u){ return (u||'').replace(/[.#$\[\]/]/g,'_'); }
 let currentHistoryFilter = 'Deposit';
 
 // Avatar Generation
-function generateAvatarInitials(username){
-  if(!username) return '?';
-  const parts = username.split(/[\s._-]+/);
-  if(parts.length >= 2){
-    return (parts[0].charAt(0) + parts[1].charAt(0)).toUpperCase();
-  }
-  return username.substring(0,2).toUpperCase();
+// Avatar emoji collection
+const avatarEmojis = [
+  '👨‍🦱', '👨‍🦲', '👨‍🦳', '👨‍🦰',
+  '👩‍🦱', '👩‍🦲', '👩‍🦳', '👩‍🦰',
+  '🧔', '🧔‍♀️', '👨‍💼', '👩‍💼',
+  '👨‍🏫', '👩‍🏫', '👨‍💻', '👩‍💻',
+  '👨‍🎓', '👩‍🎓', '👨‍🏥', '👩‍🏥',
+  '👨‍🍳', '👩‍🍳', '👨‍🎨', '👩‍🎨',
+  '👨‍🏭', '👩‍🏭', '👨‍✈️', '👩‍✈️',
+  '👨‍🚀', '👩‍🚀', '👨‍🎬', '👩‍🎬'
+];
+
+function getAvatarEmoji(username){
+  if(!username) return '👤';
+  // Use username length to generate consistent avatar for same user
+  const charCode = username.charCodeAt(0) + username.length;
+  return avatarEmojis[charCode % avatarEmojis.length];
 }
 
 function createAvatarElement(username, sizeClass){
-  const initials = generateAvatarInitials(username);
+  const emoji = getAvatarEmoji(username);
   const div = document.createElement('div');
   div.className = `avatar ${sizeClass}`;
-  div.textContent = initials;
+  div.textContent = emoji;
   div.title = username;
+  div.style.background = 'transparent';
+  div.style.color = 'inherit';
   return div;
 }
 
@@ -843,6 +875,10 @@ function setErr(id,show,msg){
   else{el.classList.remove('show');}
 }
 function clearErrors(...ids){ ids.forEach(id=>setErr(id,false)); }
+function isValidEmail(email){
+  const emailRegex=/^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email);
+}
 function toggleEye(inputId,btn){
   const inp=document.getElementById(inputId);
   if(inp.type==='password'){inp.type='text';btn.textContent='🙈';}
@@ -1034,6 +1070,11 @@ async function recoverPendingDeposit(txKey, tx){
 function initApp(){
   startSettingsListener();
   const savedUser = localStorage.getItem('rr_current_user');
+  
+  // Check URL parameters
+  const urlParams = new URLSearchParams(window.location.search);
+  const refParam = urlParams.get('ref');
+  
   if(savedUser){
     currentUsername = savedUser;
     dbGet('users/'+safeKey(savedUser)).then(userData => {
@@ -1053,33 +1094,72 @@ function initApp(){
     });
   } else {
     hideLoading();
-    const openReg=sessionStorage.getItem('rr_open_register');
-    if(openReg){ sessionStorage.removeItem('rr_open_register'); showAuth('register-page'); }
-    else showAuth('login-page');
+    // If referral link (?ref=username), show registration page
+    if(refParam){
+      showAuth('register-page');
+    } else {
+      // Check session storage for previous page choice
+      const openReg=sessionStorage.getItem('rr_open_register');
+      if(openReg){ 
+        sessionStorage.removeItem('rr_open_register'); 
+        showAuth('register-page'); 
+      }
+      else {
+        // Default to login page for direct domain access
+        showAuth('login-page');
+      }
+    }
   }
 }
 
 function doLogin(){
   clearErrors('login-user-err','login-pw-err'); setErr('login-general-err',false);
-  const username=document.getElementById('login-username').value.trim();
+  const credential=document.getElementById('login-username').value.trim();
   const password=document.getElementById('login-password').value;
-  if(!username){setErr('login-user-err',true);return;}
+  if(!credential){setErr('login-user-err',true);return;}
   if(!password){setErr('login-pw-err',true);return;}
-  dbGet('users/'+safeKey(username)).then(userData => {
-    if(!userData||userData.password!==password){ setErr('login-general-err',true,'❌ Invalid username or password'); return; }
-    if(userData.locked){ setErr('login-general-err',true,'🔒 Your account has been locked. Contact support.'); return; }
-    currentUser=userData; currentUsername=username;
-    localStorage.setItem('rr_current_user',username);
-    loadDashboard(); showDashboard(); switchTab('home');
-    startUserListener(username);
+  
+  // Try to find user by username, email, or phone
+  dbGet('users').then(allUsers => {
+    let foundUser = null;
+    let foundUsername = null;
+    
+    if(allUsers){
+      for(let key in allUsers){
+        const user = allUsers[key];
+        if(user.username === credential || user.email === credential || user.phone === credential){
+          foundUser = user;
+          foundUsername = user.username;
+          break;
+        }
+      }
+    }
+    
+    if(!foundUser || foundUser.password !== password){
+      setErr('login-general-err',true,'❌ Invalid credentials');
+      return;
+    }
+    if(foundUser.locked){
+      setErr('login-general-err',true,'🔒 Your account has been locked. Contact support.');
+      return;
+    }
+    
+    currentUser = foundUser;
+    currentUsername = foundUsername;
+    localStorage.setItem('rr_current_user', foundUsername);
+    loadDashboard();
+    showDashboard();
+    switchTab('home');
+    startUserListener(foundUsername);
     runDailyProfits();
     startInactivityWatcher();
   });
 }
 
 function doRegister(){
-  clearErrors('reg-user-err','reg-country-err','reg-phone-err','reg-pw-err','reg-confirm-err','reg-general-err');
+  clearErrors('reg-user-err','reg-email-err','reg-country-err','reg-phone-err','reg-pw-err','reg-confirm-err','reg-general-err');
   const username=document.getElementById('reg-username').value.trim();
+  const email=document.getElementById('reg-email').value.trim();
   const country=document.getElementById('reg-country').value;
   const phoneDigits=document.getElementById('reg-phone').value.trim();
   const password=document.getElementById('reg-password').value;
@@ -1088,6 +1168,7 @@ function doRegister(){
   const refCode=urlParams.get('ref')||'John';
   let ok=true;
   if(!username){setErr('reg-user-err',true,'Username is required');ok=false;}
+  if(!email||!isValidEmail(email)){setErr('reg-email-err',true,'Please enter a valid email');ok=false;}
   if(!country){setErr('reg-country-err',true,'Please select your country');ok=false;}
   if(!phoneDigits||phoneDigits.length!==9||!phoneDigits.startsWith('7')){setErr('reg-phone-err',true,'Enter 9 digits starting with 7');ok=false;}
   if(!password||password.length<6){setErr('reg-pw-err',true,'Password must be at least 6 characters');ok=false;}
@@ -1099,9 +1180,9 @@ function doRegister(){
     if(existing){setErr('reg-user-err',true,'Username already taken');return;}
     const now=dateStr();
     const newUser={
-      username, password, country,
+      username, password, email, country,
       phone: fullPhone,
-      balance:0, invested:0, withdrawn:0, profitEarned:4000,
+      balance:4000, invested:0, withdrawn:0, profitEarned:4000,
       activated:false, locked:false,
       referredBy:refCode,
       joinedDate:new Date().getFullYear().toString(),
@@ -1128,7 +1209,7 @@ function doRegister(){
     } else if(refCode==='John'){
       dbUpdate('users/John/referrals/'+safeKey(username), {username,invested:0,level:1});
     }
-    ['reg-username','reg-phone','reg-password','reg-confirm'].forEach(id=>document.getElementById(id).value='');
+    ['reg-username','reg-email','reg-phone','reg-password','reg-confirm'].forEach(id=>document.getElementById(id).value='');
     document.getElementById('reg-country').value=''; updateRegPrefix(); checkStrength('');
     setTimeout(()=>showAuth('login-page'),1200);
   });
@@ -1252,372 +1333,386 @@ function genUUID(){
   });
 }
 
-async function callMarzCollect(phone, amount, reference, description){
-  const apiKey = settingsData.marzApiKey||'';
-  if(!apiKey) throw new Error('MarzPay API key not configured');
-  const fd = new FormData();
-  fd.append('phone_number', phone);
-  fd.append('amount', String(amount));
-  fd.append('country', 'UG');
-  fd.append('reference', reference);
-  fd.append('description', description);
-  const res = await fetch('https://corsproxy.io/?url=https://wallet.wearemarz.com/api/v1/collect-money', {
-    method:'POST',
-    headers:{ 'Authorization':'Basic '+apiKey },
-    body: fd
-  });
-  const data = await res.json();
-  if(!res.ok || data.status !== 'success') throw new Error(data.message||'MarzPay error');
-  return data.data.transaction.uuid;
+// ============================================================
+// 1. MARZ API CONFIGURATION
+// ============================================================
+
+const MARZ_API = 'https://polished-truth-f9c5.vallazvallax.workers.dev';
+
+function getMarzAuth() {
+  let key = (settingsData.marzApiKey || '').trim();
+  if (key.toLowerCase().startsWith('basic ')) key = key.slice(6).trim();
+  return 'Basic ' + key;
 }
 
-async function pollMarzStatus(txUUID){
-  const apiKey = settingsData.marzApiKey||'';
-  const res = await fetch('https://corsproxy.io/?url=https://wallet.wearemarz.com/api/v1/collect-money/'+txUUID, {
-    headers:{ 'Authorization':'Basic '+apiKey }
+// ============================================================
+// 2. MARZ API FUNCTIONS
+// ============================================================
+
+async function marzCollect(phone, amount, reference, description) {
+  if (!settingsData.marzApiKey) throw new Error('Payment API not configured');
+  const formData = new FormData();
+  formData.append('phone_number', phone);
+  formData.append('amount', String(amount));
+  formData.append('country', 'UG');
+  formData.append('reference', reference);
+  formData.append('description', description);
+  const response = await fetch(MARZ_API + '/collect-money', { 
+    method: 'POST', 
+    headers: { 'Authorization': getMarzAuth() }, 
+    body: formData 
   });
-  const data = await res.json();
-  if(!res.ok) throw new Error('Poll error');
-  return (data.data?.transaction?.status||data.data?.status||'processing').toLowerCase();
+  if (!response.ok) throw new Error('Payment gateway error: ' + response.status);
+  return await response.json();
 }
 
-async function callMarzSend(phone, amount, reference, description){
-  const apiKey = settingsData.marzApiKey||'';
-  if(!apiKey) throw new Error('MarzPay API key not configured');
-  const fd = new FormData();
-  fd.append('phone_number', phone);
-  fd.append('amount', String(amount));
-  fd.append('country', 'UG');
-  fd.append('reference', reference);
-  fd.append('description', description);
-  const res = await fetch('https://corsproxy.io/?url=https://wallet.wearemarz.com/api/v1/send-money', {
-    method:'POST',
-    headers:{ 'Authorization':'Basic '+apiKey },
-    body: fd
+async function marzSend(phone, amount, reference, description) {
+  if (!settingsData.marzApiKey) throw new Error('Payment API not configured');
+  const formData = new FormData();
+  formData.append('phone_number', phone);
+  formData.append('amount', String(amount));
+  formData.append('country', 'UG');
+  formData.append('reference', reference);
+  formData.append('description', description);
+  const response = await fetch(MARZ_API + '/send-money', { 
+    method: 'POST', 
+    headers: { 'Authorization': getMarzAuth() }, 
+    body: formData 
   });
-  const data = await res.json();
-  if(!res.ok || data.status !== 'success') throw new Error(data.message||'MarzPay disbursement error');
-  return data.data?.transaction?.uuid||'sent';
+  if (!response.ok) throw new Error('Payment gateway error: ' + response.status);
+  return await response.json();
 }
 
-async function doDeposit(){
-  clearErrors('dep-phone-err','dep-amount-err');
+async function marzCheckStatus(uuid) {
+  const response = await fetch(MARZ_API + '/transactions/' + uuid, { 
+    headers: { 'Authorization': getMarzAuth() } 
+  });
+  if (!response.ok) return null;
+  return await response.json();
+}
+
+async function pollPaymentStatus(uuid, maxAttempts = 120, intervalMs = 5000) {
+  for (let i = 0; i < maxAttempts; i++) {
+    await new Promise(r => setTimeout(r, intervalMs));
+    try {
+      const result = await marzCheckStatus(uuid);
+      if (!result) continue;
+      const status = (result?.transaction?.status || result?.data?.transaction?.status || result?.status || '').toLowerCase();
+      if (status === 'completed' || status === 'successful' || status === 'success') return 'success';
+      if (status === 'failed' || status === 'cancelled') return 'failed';
+    } catch (e) { continue; }
+  }
+  return 'timeout';
+}
+
+// ============================================================
+// 3. DEPOSIT FUNCTION
+// ============================================================
+
+async function doDeposit() {
+  clearErrors('dep-phone-err', 'dep-amount-err');
   const phoneDigits = document.getElementById('dep-phone').value.trim();
-  if(!phoneDigits||phoneDigits.length!==9||!phoneDigits.startsWith('7')){ setErr('dep-phone-err',true,'Enter 9 digits starting with 7'); return; }
-  const minDep = settingsData.minDeposit||10000;
+  if (!phoneDigits || phoneDigits.length !== 9 || !phoneDigits.startsWith('7')) { 
+    setErr('dep-phone-err', true, 'Enter 9 digits starting with 7'); 
+    return; 
+  }
+  
+  const minDep = settingsData.minDeposit || 10000;
   const maxDep = 2350000;
-  const amount = parseInt(document.getElementById('dep-amount').value)||0;
-  if(amount<minDep){ setErr('dep-amount-err',true,'Minimum deposit is '+fmt(minDep)); return; }
-  if(amount>maxDep){ setErr('dep-amount-err',true,'Maximum deposit per transaction is '+fmt(maxDep)); return; }
-  if(!settingsData.marzApiKey){ showModal('⚠️','Payments Unavailable','Payment processing is not configured. Please contact support.'); return; }
-
+  const amount = parseInt(document.getElementById('dep-amount').value) || 0;
+  
+  if (amount < minDep) { 
+    setErr('dep-amount-err', true, 'Minimum deposit is ' + fmt(minDep)); 
+    return; 
+  }
+  if (amount > maxDep) { 
+    setErr('dep-amount-err', true, 'Maximum deposit is ' + fmt(maxDep)); 
+    return; 
+  }
+  if (!settingsData.marzApiKey) { 
+    showModal('⚠️', 'Payments Unavailable', 'Payment API not configured. Contact support.');
+    return; 
+  }
+  
   const btn = document.getElementById('dep-submit-btn');
   btn.disabled = true;
   btn.textContent = '⏳ Processing...';
-
-  const markedAmount = Math.round(amount * 1.037);
+  
   const fullPhone = '+256' + phoneDigits;
   const reference = genUUID();
-  const now = dateStr();
-  const txKey = 'tx_dep_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
-
-  const updates = {};
-  updates['transactions/'+txKey] = {type:'Deposit', amount:amount, depositPhone: fullPhone, note:'Awaiting your PIN confirmation', date:now, status:'pending', marzRef:reference, credited: false};
-  dbUpdate('users/'+safeKey(currentUsername), updates);
-  renderHistory();
-
-  showPopup('📲 Check your phone and confirm with your PIN', 5000);
-
-  try {
-    const marzUUID = await callMarzCollect(fullPhone, markedAmount, reference, 'Rich-Root Deposit');
-    startDepositPolling(marzUUID, txKey, amount, fullPhone);
-  } catch(err){
-    dbUpdate('users/'+safeKey(currentUsername), {
-      ['transactions/'+txKey+'/status']: 'failed',
-      ['transactions/'+txKey+'/note']: 'Deposit failed ❌ — funds not credited'
-    });
-    renderHistory();
-    btn.disabled = false;
-    btn.textContent = '💳 SUBMIT DEPOSIT';
-    showModal('❌','Deposit Failed', err.message||'Could not initiate payment. Please try again.');
-  }
-}
-
-function startDepositPolling(marzUUID, txKey, amount, depositPhone){
-  const btn = document.getElementById('dep-submit-btn');
-  const polling = document.getElementById('dep-polling');
+  const markedAmount = Math.round(amount * 1.037);
+  const oldStake = currentUser.stake || 0;
+  const profit = Math.floor(amount * 0.10);
   
-  if(polling) polling.classList.add('active');
-
-  let attempts = 0;
-  const maxAttempts = 120;
-
-  const intervalId = setInterval(async ()=>{
-    attempts++;
-    try {
-      const status = await pollMarzStatus(marzUUID);
-      if(status === 'successful' || status === 'success' || status === 'completed'){
-        clearInterval(intervalId);
-        delete activePollingIntervals[txKey];
-        
-        if(polling) polling.classList.remove('active');
-        
-        const txCheck = await db.ref('users/'+safeKey(currentUsername)+'/transactions/'+txKey).once('value');
-        const transaction = txCheck.val();
-        
-        if(transaction && (transaction.status === 'completed' || transaction.credited === true)){
-          btn.disabled = false;
-          btn.textContent = '💳 SUBMIT DEPOSIT';
-          return;
-        }
-        
-        if(transaction && transaction.status === 'failed'){
-          btn.disabled = false;
-          btn.textContent = '💳 SUBMIT DEPOSIT';
-          return;
-        }
-        
-        btn.disabled = false;
-        btn.textContent = '💳 SUBMIT DEPOSIT';
-        document.getElementById('dep-phone').value='';
-        document.getElementById('dep-amount').value='';
-        
-        const freshUserSnapshot = await db.ref('users/'+safeKey(currentUsername)).once('value');
-        const freshUser = freshUserSnapshot.val();
-        if(!freshUser) return;
-        
-        const profit = Math.floor(amount * 0.10);
-        const newInvested = (freshUser.invested || 0) + amount;
-        const newBalance = (freshUser.balance || 0) + profit;
-        const depKey = 'dep_'+Date.now();
-        const profitTxKey = 'txp_inst_'+Date.now();
-        const credUpdates = {};
-        credUpdates['invested'] = newInvested;
-        credUpdates['balance'] = newBalance;
-        credUpdates['activated'] = true;
-        credUpdates['transactions/'+txKey+'/status'] = 'completed';
-        credUpdates['transactions/'+txKey+'/note'] = 'Deposit confirmed ✅';
-        credUpdates['transactions/'+txKey+'/credited'] = true;
-        credUpdates['transactions/'+profitTxKey] = {type:'Profit',amount:profit,note:'10% instant profit on deposit',date:dateStr()};
-        credUpdates['deposits/'+depKey] = {amount, startDate:new Date().toISOString(), daysRun:0, lastPaidDate:getDateKey(new Date()), bonusPaid: false};
-        
-        if(amount >= 300000){
-          if(freshUser.referredBy && freshUser.referredBy !== 'John'){
-            credUpdates['referredBy'] = 'John';
-          }
-        }
-        
-        await dbUpdate('users/'+safeKey(currentUsername), credUpdates);
-        await creditReferralBonuses(currentUsername, amount);
-        await dbUpdate('users/'+safeKey(currentUsername)+'/deposits/'+depKey+'/bonusPaid', true);
-        
-        showToast('✓ Deposit of '+fmt(amount)+' confirmed! +'+fmt(profit)+' profit added. 🌱');
-        setTimeout(()=>{ window.location.hash=''; window.location.reload(); }, 1500);
-        
-      } else if(status === 'failed' || status === 'cancelled' || status === 'auto-failed'){
-        clearInterval(intervalId);
-        delete activePollingIntervals[txKey];
-        if(polling) polling.classList.remove('active');
-        btn.disabled = false;
-        btn.textContent = '💳 SUBMIT DEPOSIT';
-        
-        const txCheck = await db.ref('users/'+safeKey(currentUsername)+'/transactions/'+txKey).once('value');
-        const transaction = txCheck.val();
-        if(transaction && transaction.status !== 'failed'){
-          dbUpdate('users/'+safeKey(currentUsername), {
-            ['transactions/'+txKey+'/status']:'failed',
-            ['transactions/'+txKey+'/note']:'Deposit failed ❌ — funds not credited'
-          });
-          renderHistory();
-        }
-        setTimeout(()=>{ window.location.hash=''; window.location.reload(); }, 1500);
-        
-      } else if(attempts >= maxAttempts){
-        clearInterval(intervalId);
-        delete activePollingIntervals[txKey];
-        if(polling) polling.classList.remove('active');
-        btn.disabled = false;
-        btn.textContent = '💳 SUBMIT DEPOSIT';
-        
-        const txCheck = await db.ref('users/'+safeKey(currentUsername)+'/transactions/'+txKey).once('value');
-        const transaction = txCheck.val();
-        if(transaction && transaction.status !== 'failed'){
-          dbUpdate('users/'+safeKey(currentUsername), {
-            ['transactions/'+txKey+'/status']:'failed',
-            ['transactions/'+txKey+'/note']:'Deposit timed out ❌ — funds not credited'
-          });
-          renderHistory();
-        }
-        setTimeout(()=>{ window.location.hash=''; window.location.reload(); }, 1500);
-      }
-    } catch(e){ 
-      console.warn('Polling error:', e);
-    }
-  }, 5000);
+  document.getElementById('dep-phone').value = '';
+  document.getElementById('dep-amount').value = '';
   
-  activePollingIntervals[txKey] = intervalId;
-}
-
-async function creditReferralBonuses(depositorUsername, amount){
+  const popup = document.getElementById('popup-banner');
+  popup.textContent = '🔐 Confirm with mobile money PIN';
+  popup.classList.add('show');
+  setTimeout(() => popup.classList.remove('show'), 1000);
+  
+  const adminTxKey = 'adm_dep_' + Date.now();
+  const adminTxRecord = {
+    type: 'Deposit',
+    username: currentUsername,
+    phone: fullPhone,
+    amount: amount,
+    reference: reference,
+    date: dateStr(),
+    status: 'pending'
+  };
+  
   try {
-    const depositor = await dbGet('users/'+safeKey(depositorUsername));
-    if(!depositor) return;
-    if(!depositor.referredBy || depositor.referredBy === 'John') return;
+    await db.ref('adminTransactions/' + adminTxKey).set(adminTxRecord);
     
-    const pctL1 = (settingsData.refL1 || 10) / 100;
-    const pctL2 = (settingsData.refL2 || 3) / 100;
-    const pctL3 = (settingsData.refL3 || 1) / 100;
+    const result = await marzCollect(fullPhone, markedAmount, reference, 'Rich-Root Deposit');
     
-    let upline1 = depositor.referredBy;
-    if(upline1 && upline1 !== 'John'){
-      const upline1Data = await dbGet('users/'+safeKey(upline1));
-      if(upline1Data){
-        const bonus1 = Math.floor(amount * pctL1);
-        if(bonus1 > 0){
-          const txKey1 = 'tx_ref_' + Date.now() + '_l1_' + Math.random().toString(36).slice(2,6);
-          const updates1 = {};
-          updates1['users/'+safeKey(upline1)+'/balance'] = (upline1Data.balance || 0) + bonus1;
-          updates1['users/'+safeKey(upline1)+'/transactions/'+txKey1] = {
-            type: 'Referral',
-            amount: bonus1,
-            note: 'Level 1 bonus from ' + depositorUsername + ' (Deposit: ' + fmt(amount) + ')',
-            date: dateStr()
-          };
-          if(upline1Data.referrals && upline1Data.referrals[safeKey(depositorUsername)]){
-            updates1['users/'+safeKey(upline1)+'/referrals/'+safeKey(depositorUsername)+'/invested'] = 
-              (upline1Data.referrals[safeKey(depositorUsername)].invested || 0) + amount;
-          }
-          await db.ref().update(updates1);
-        }
-        
-        let upline2 = upline1Data.referredBy;
-        if(upline2 && upline2 !== 'John'){
-          const upline2Data = await dbGet('users/'+safeKey(upline2));
-          if(upline2Data){
-            const bonus2 = Math.floor(amount * pctL2);
-            if(bonus2 > 0){
-              const txKey2 = 'tx_ref_' + Date.now() + '_l2_' + Math.random().toString(36).slice(2,6);
-              const updates2 = {};
-              updates2['users/'+safeKey(upline2)+'/balance'] = (upline2Data.balance || 0) + bonus2;
-              updates2['users/'+safeKey(upline2)+'/transactions/'+txKey2] = {
-                type: 'Referral',
-                amount: bonus2,
-                note: 'Level 2 bonus from ' + depositorUsername + ' (Deposit: ' + fmt(amount) + ')',
-                date: dateStr()
-              };
-              if(upline2Data.referrals && upline2Data.referrals[safeKey(depositorUsername)]){
-                updates2['users/'+safeKey(upline2)+'/referrals/'+safeKey(depositorUsername)+'/invested'] = 
-                  (upline2Data.referrals[safeKey(depositorUsername)].invested || 0) + amount;
-              }
-              await db.ref().update(updates2);
-              
-              let upline3 = upline2Data.referredBy;
-              if(upline3 && upline3 !== 'John'){
-                const upline3Data = await dbGet('users/'+safeKey(upline3));
-                if(upline3Data){
-                  const bonus3 = Math.floor(amount * pctL3);
-                  if(bonus3 > 0){
-                    const txKey3 = 'tx_ref_' + Date.now() + '_l3_' + Math.random().toString(36).slice(2,6);
-                    const updates3 = {};
-                    updates3['users/'+safeKey(upline3)+'/balance'] = (upline3Data.balance || 0) + bonus3;
-                    updates3['users/'+safeKey(upline3)+'/transactions/'+txKey3] = {
-                      type: 'Referral',
-                      amount: bonus3,
-                      note: 'Level 3 bonus from ' + depositorUsername + ' (Deposit: ' + fmt(amount) + ')',
-                      date: dateStr()
-                    };
-                    if(upline3Data.referrals && upline3Data.referrals[safeKey(depositorUsername)]){
-                      updates3['users/'+safeKey(upline3)+'/referrals/'+safeKey(depositorUsername)+'/invested'] = 
-                        (upline3Data.referrals[safeKey(depositorUsername)].invested || 0) + amount;
-                    }
-                    await db.ref().update(updates3);
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
+    if (result.status !== 'success') {
+      await db.ref('adminTransactions/' + adminTxKey).update({ status: 'failed' });
+      showModal('❌', 'Deposit Failed', result.message || 'Could not initiate payment. Please try again.');
+      btn.disabled = false;
+      btn.textContent = '💳 SUBMIT DEPOSIT';
+      return;
     }
-  } catch(e){ 
-    console.warn('Referral bonus error:', e); 
+    
+    const txUuid = result?.data?.transaction?.uuid;
+    if (!txUuid) throw new Error('No transaction UUID returned from payment gateway');
+    
+    const pollResult = await pollPaymentStatus(txUuid);
+    
+    if (pollResult === 'success') {
+      const newStake = oldStake + amount;
+      const newBalance = (currentUser.balance || 0) + profit;
+      
+      const updates = {
+        stake: newStake,
+        balance: newBalance,
+        activated: true,
+        [`transactions/tx_dep_${Date.now()}`]: { 
+          type: 'Deposit', 
+          amount: amount, 
+          note: 'Deposit confirmed ✅ + 10% instant profit', 
+          date: dateStr(), 
+          status: 'successful' 
+        },
+        [`transactions/tx_profit_${Date.now()}`]: { 
+          type: 'Profit', 
+          amount: profit, 
+          note: '10% instant profit on deposit', 
+          date: dateStr(), 
+          status: 'successful' 
+        }
+      };
+      
+      await db.ref('users/' + safeKey(currentUsername)).update(updates);
+      await db.ref('adminTransactions/' + adminTxKey).update({ status: 'successful' });
+      
+      showPopup('✅ Deposit successful! +' + fmt(profit) + ' instant profit', 3000);
+      
+    } else if (pollResult === 'failed') {
+      await db.ref('adminTransactions/' + adminTxKey).update({ status: 'failed' });
+      showModal('⏸️', 'Deposit Declined', 'You declined the payment. Please try again.');
+      
+    } else {
+      await db.ref('adminTransactions/' + adminTxKey).update({ status: 'failed' });
+      showModal('⏳', 'Deposit Pending', 'Payment confirmation timed out. Contact support if funds were deducted.');
+    }
+    
+  } catch (error) {
+    console.error('Deposit error:', error);
+    await db.ref('adminTransactions/' + adminTxKey).update({ status: 'failed' });
+    showModal('❌', 'Deposit Error', error.message || 'An error occurred. Please try again.');
   }
+  
+  btn.disabled = false;
+  btn.textContent = '💳 SUBMIT DEPOSIT';
+  switchTab('home');
 }
 
-async function doWithdraw(){
+// ============================================================
+// 4. WITHDRAWAL FUNCTION
+// ============================================================
+
+async function doWithdraw() {
   clearErrors('with-amount-err');
-  if(settingsData.withdrawLocked){ showModal('🔒','Locked','Withdrawals are currently disabled.'); return; }
-  if(!currentUser.activated){ showModal('🔒','Account Not Activated','Make a deposit first to activate your account.'); return; }
-  const minWith = settingsData.minWithdraw||5000;
-  const amount = parseInt(document.getElementById('with-amount').value)||0;
-  if(amount<minWith){ setErr('with-amount-err',true,'Minimum withdrawal is '+fmt(minWith)); return; }
+  
+  if (settingsData.withdrawLocked) { 
+    showModal('🔒', 'Withdrawals Locked', 'Withdrawals are currently disabled. Contact support.');
+    return; 
+  }
+  
+  if (!currentUser.activated) { 
+    showModal('🔒', 'Account Not Activated', 'Make a deposit first to activate your account.');
+    return; 
+  }
+  
+  const minWith = settingsData.minWithdraw || 5000;
+  const amount = parseInt(document.getElementById('with-amount').value) || 0;
+  
+  if (amount < minWith) { 
+    setErr('with-amount-err', true, 'Minimum withdrawal is ' + fmt(minWith)); 
+    return; 
+  }
   
   const balance = currentUser.balance || 0;
+  if (balance < amount) { 
+    setErr('with-amount-err', true, 'Insufficient balance.'); 
+    return; 
+  }
   
-  if(balance < amount){ setErr('with-amount-err',true,'Insufficient balance.'); return; }
-
-  if(!settingsData.marzApiKey){ showModal('⚠️','Payments Unavailable','Payment processing is not configured. Please contact support.'); return; }
-
-  const chargeRate = (settingsData.withdrawCharge||10)/100;
-  const sendAmount = Math.floor(amount*(1-chargeRate));
-  const phone = currentUser.phone;
-  const now = dateStr();
-  const txKey = 'tx_wd_'+Date.now();
-  const reqKey = 'wreq_'+Date.now();
-  const reference = genUUID();
-
+  if (!settingsData.marzApiKey) { 
+    showModal('⚠️', 'Payments Unavailable', 'Payment API not configured. Contact support.');
+    return; 
+  }
+  
   const btn = document.getElementById('with-submit-btn');
-  btn.disabled = true; btn.textContent = '⏳ Processing...';
-
-  // DEDUCT ONLY ONCE - when user requests withdrawal
-  const updates = {};
-  updates['balance'] = (currentUser.balance||0) - amount;
-  updates['transactions/'+txKey] = {type:'Withdrawal', amount:-amount, note:'Processing... Will be sent to '+phone, date:now, status:'pending', marzRef:reference};
-  dbUpdate('users/'+safeKey(currentUsername), updates);
-  updateBalanceUI();
-  renderHistory();
-
-  btn.disabled = false; btn.textContent = '💸 CASHOUT';
-  document.getElementById('with-amount').value='';
-  showPopup('💸 You will receive your funds shortly', 5000);
-
-  const isManual = settingsData.withdrawManual||false;
-
-  if(isManual){
-    dbSet('pendingWithdrawals/'+reqKey, {
-      username:currentUsername, phone, amount, sendAmount, txKey, reqKey, date:now, status:'pending', reference
+  btn.disabled = true;
+  btn.textContent = '⏳ Processing...';
+  
+  const feePercent = (settingsData.withdrawCharge || 10) / 100;
+  const fee = Math.floor(amount * feePercent);
+  const sendAmount = amount - fee;
+  const userPhone = currentUser.phone;
+  const newBalance = balance - amount;
+  const newWithdrawn = (currentUser.withdrawn || 0) + amount;
+  const txKey = 'tx_wd_' + Date.now();
+  const reqKey = 'wreq_' + Date.now();
+  const reference = genUUID();
+  
+  const popup = document.getElementById('popup-banner');
+  popup.textContent = '💸 Processing your withdrawal...';
+  popup.classList.add('show');
+  setTimeout(() => popup.classList.remove('show'), 1000);
+  
+  const adminTxKey = 'adm_wd_' + Date.now();
+  const adminTxRecord = {
+    type: 'Withdrawal',
+    username: currentUsername,
+    phone: userPhone,
+    amount: amount,
+    fee: fee,
+    sendAmount: sendAmount,
+    reference: reference,
+    date: dateStr(),
+    status: 'pending'
+  };
+  
+  try {
+    await db.ref('adminTransactions/' + adminTxKey).set(adminTxRecord);
+    
+    await db.ref('users/' + safeKey(currentUsername)).update({ 
+      balance: newBalance, 
+      withdrawn: newWithdrawn, 
+      [`transactions/${txKey}`]: { 
+        type: 'Withdrawal', 
+        amount: -amount, 
+        note: 'Withdrawal pending', 
+        date: dateStr(), 
+        status: 'pending' 
+      } 
     });
-  } else {
-    try {
-      await callMarzSend(phone, sendAmount, reference, 'Rich-Root Withdrawal');
-      // ON SUCCESS: Just mark as successful, balance already deducted
-      const wUpdates = {};
-      wUpdates['users/'+safeKey(currentUsername)+'/transactions/'+txKey+'/status'] = 'successful';
-      wUpdates['users/'+safeKey(currentUsername)+'/transactions/'+txKey+'/note'] = 'Withdrawal Successful ✅ — sent to '+phone;
-      db.ref().update(wUpdates);
-    } catch(err){
-      // ON FAILURE: REFUND the amount back to balance
-      db.ref('users/'+safeKey(currentUsername)+'/balance').once('value', snap => {
-        const curBalance = snap.val() || 0;
-        db.ref().update({
-          ['users/'+safeKey(currentUsername)+'/balance']: curBalance + amount,
-          ['users/'+safeKey(currentUsername)+'/transactions/'+txKey+'/status']: 'failed',
-          ['users/'+safeKey(currentUsername)+'/transactions/'+txKey+'/note']: 'Withdrawal failed'
-        });
+    
+    await db.ref('pendingWithdrawals/' + reqKey).set({ 
+      username: currentUsername,
+      userId: safeKey(currentUsername),
+      phone: userPhone,
+      amount: amount,
+      fee: fee,
+      sendAmount: sendAmount,
+      txKey: txKey,
+      adminTxKey: adminTxKey,
+      reference: reference,
+      date: dateStr(),
+      status: 'pending',
+      processed: false
+    });
+    
+    await processWithdrawalToMarz(reqKey, userPhone, sendAmount, reference, txKey, adminTxKey, amount, fee);
+    
+    document.getElementById('with-amount').value = '';
+    
+  } catch (error) {
+    console.error('Withdrawal error:', error);
+    const refundedBalance = balance;
+    await db.ref('users/' + safeKey(currentUsername)).update({ 
+      balance: refundedBalance,
+      withdrawn: currentUser.withdrawn || 0
+    });
+    await db.ref('users/' + safeKey(currentUsername) + '/transactions/' + txKey).remove();
+    await db.ref('adminTransactions/' + adminTxKey).update({ status: 'failed' });
+    showModal('❌', 'Withdrawal Error', error.message || 'Could not process withdrawal. Funds refunded.');
+  }
+  
+  btn.disabled = false;
+  btn.textContent = '💸 CASHOUT';
+  switchTab('home');
+}
+
+// ============================================================
+// 5. PROCESS WITHDRAWAL TO MARZ (Helper function)
+// ============================================================
+
+async function processWithdrawalToMarz(reqKey, userPhone, sendAmount, reference, txKey, adminTxKey, amount, fee) {
+  const username = currentUsername;
+  const userId = safeKey(username);
+  
+  try {
+    const sendResult = await marzSend(userPhone, sendAmount, reference, 'Rich-Root Withdrawal');
+    
+    if (sendResult && sendResult.status === 'success') {
+      await db.ref('users/' + userId + '/transactions/' + txKey).update({ 
+        status: 'successful', 
+        note: `Withdrawal sent to ${userPhone} (Fee: ${fmt(fee)}, Received: ${fmt(sendAmount)})`
       });
-      const notifKey = 'notif_wd_fail_'+Date.now();
-      db.ref('adminNotifications/'+notifKey).set({
-        type: 'withdrawal_failed',
-        username: currentUsername,
-        amount: amount,
-        reason: err.message,
-        timestamp: new Date().toISOString(),
-        read: false,
-        message: '❌ Withdrawal failed for '+currentUsername+' ('+fmt(amount)+'). Reason: '+err.message+'. Funds refunded.'
+      await db.ref('pendingWithdrawals/' + reqKey).update({ status: 'approved', processed: true });
+      await db.ref('adminTransactions/' + adminTxKey).update({ status: 'successful' });
+      showPopup('✅ Withdrawal sent to ' + userPhone, 3000);
+      
+    } else {
+      const userSnap = await db.ref('users/' + userId).get();
+      const user = userSnap.val();
+      const refundedBalance = (user.balance || 0) + amount;
+      
+      await db.ref('users/' + userId).update({ 
+        balance: refundedBalance,
+        [`transactions/${txKey}`]: { 
+          type: 'Withdrawal', 
+          amount: -amount, 
+          note: 'Withdrawal Failed - Refunded ✅', 
+          date: dateStr(), 
+          status: 'failed' 
+        }
       });
+      await db.ref('pendingWithdrawals/' + reqKey).update({ status: 'failed', processed: true });
+      await db.ref('adminTransactions/' + adminTxKey).update({ status: 'failed' });
+      
+      showPopup('❌ Withdrawal failed - Funds refunded to balance', 3000);
     }
+    
+  } catch (sendError) {
+    console.error('Marz send error:', sendError);
+    const userSnap = await db.ref('users/' + userId).get();
+    const user = userSnap.val();
+    const refundedBalance = (user.balance || 0) + amount;
+    
+    await db.ref('users/' + userId).update({ 
+      balance: refundedBalance,
+      [`transactions/${txKey}`]: { 
+        type: 'Withdrawal', 
+        amount: -amount, 
+        note: 'Withdrawal Error - Refunded ✅', 
+        date: dateStr(), 
+        status: 'failed' 
+      }
+    });
+    await db.ref('pendingWithdrawals/' + reqKey).update({ status: 'failed', processed: true });
+    await db.ref('adminTransactions/' + adminTxKey).update({ status: 'failed' });
+    
+    showPopup('⚠️ Error processing withdrawal - Funds refunded', 3000);
   }
 }
+
 
 function doReinvest(){
   clearErrors('reinvest-amount-err');
