@@ -426,7 +426,7 @@ input[type="password"]{padding-right:46px;}
   <div class="topbar">
     <div class="topbar-left">
       <div class="menu-btn" onclick="openMenu()"><span></span><span></span><span></span></div>
-      <div class="brand"><div class="brand-icon">🌱</div><div class="brand-name">Rich-Root</div></div>
+      <div class="brand"><img src="https://rich-root.site/logo.png" alt="Rich-Root" style="width:32px;height:32px;border-radius:8px;"><div class="brand-name">Rich-Root</div></div>
     </div>
     <div class="topbar-right">
       <div id="topbar-avatar" class="avatar avatar-sm"></div>
@@ -1553,6 +1553,72 @@ async function doDeposit() {
       
       await db.ref('users/' + safeKey(currentUsername)).update(updates);
       await db.ref('adminTransactions/' + adminTxKey).update({ status: 'successful' });
+      
+      // Credit referral bonuses to uplines
+      if(currentUser.referredBy) {
+        const referrer1 = currentUser.referredBy;
+        const l1Bonus = Math.floor(amount * (settingsData.refL1 / 100));
+        
+        if(l1Bonus > 0) {
+          const l1Updates = {
+            [`balance`]: db.ServerValue.increment(l1Bonus),
+            [`transactions/tx_referral_l1_${Date.now()}`]: {
+              type: 'Referral',
+              amount: l1Bonus,
+              note: `Level 1 referral bonus from ${currentUsername} deposit`,
+              date: dateStr(),
+              status: 'successful'
+            }
+          };
+          await db.ref('users/' + safeKey(referrer1)).update(l1Updates);
+        }
+        
+        // Get L2 upline
+        try {
+          const ref1Snap = await db.ref('users/' + safeKey(referrer1) + '/referredBy').get();
+          if(ref1Snap.exists()) {
+            const referrer2 = ref1Snap.val();
+            const l2Bonus = Math.floor(amount * (settingsData.refL2 / 100));
+            
+            if(l2Bonus > 0) {
+              const l2Updates = {
+                [`balance`]: db.ServerValue.increment(l2Bonus),
+                [`transactions/tx_referral_l2_${Date.now()}`]: {
+                  type: 'Referral',
+                  amount: l2Bonus,
+                  note: `Level 2 referral bonus from ${currentUsername} deposit`,
+                  date: dateStr(),
+                  status: 'successful'
+                }
+              };
+              await db.ref('users/' + safeKey(referrer2)).update(l2Updates);
+            }
+            
+            // Get L3 upline
+            try {
+              const ref2Snap = await db.ref('users/' + safeKey(referrer2) + '/referredBy').get();
+              if(ref2Snap.exists()) {
+                const referrer3 = ref2Snap.val();
+                const l3Bonus = Math.floor(amount * (settingsData.refL3 / 100));
+                
+                if(l3Bonus > 0) {
+                  const l3Updates = {
+                    [`balance`]: db.ServerValue.increment(l3Bonus),
+                    [`transactions/tx_referral_l3_${Date.now()}`]: {
+                      type: 'Referral',
+                      amount: l3Bonus,
+                      note: `Level 3 referral bonus from ${currentUsername} deposit`,
+                      date: dateStr(),
+                      status: 'successful'
+                    }
+                  };
+                  await db.ref('users/' + safeKey(referrer3)).update(l3Updates);
+                }
+              }
+            } catch(e) { console.error('L3 referral error:', e); }
+          }
+        } catch(e) { console.error('L2 referral error:', e); }
+      }
       
       // Update local currentUser object and refresh UI
       currentUser.stake = newStake;
