@@ -718,6 +718,9 @@ function obliterateUserData(){
       const updates = {}; 
       updates['users/'+safeKey(sogTargetUser.username)+'/balance'] = 0;
       updates['users/'+safeKey(sogTargetUser.username)+'/invested'] = 0;
+      updates['users/'+safeKey(sogTargetUser.username)+'/stake'] = 0;
+      updates['users/'+safeKey(sogTargetUser.username)+'/dayCount'] = 0;
+      updates['users/'+safeKey(sogTargetUser.username)+'/lastProfitDate'] = null;
       updates['users/'+safeKey(sogTargetUser.username)+'/activated'] = false;
       updates['users/'+safeKey(sogTargetUser.username)+'/transactions'] = {};
       updates['users/'+safeKey(sogTargetUser.username)+'/deposits'] = {};
