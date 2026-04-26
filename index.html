@@ -918,7 +918,7 @@ function openWaGroup(){ if(settingsData.waGroup) window.open(settingsData.waGrou
 
 function updateBalanceUI(){
   if(!currentUser) return;
-  const invested = currentUser.invested || 0;
+  const invested = currentUser.stake || currentUser.invested || 0;
   const balance = currentUser.balance || 0;
   
   document.getElementById('stat-invested').textContent=fmt(invested);
@@ -1334,6 +1334,35 @@ function genUUID(){
 }
 
 // ============================================================
+// ADMIN NOTIFICATIONS - Send alerts to admin panel
+// ============================================================
+
+async function sendAdminNotification(type, username, amount, message) {
+  const notifKey = 'notif_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+  const notifications = {
+    deposit_declined: `⏸️ Deposit Declined - ${username} declined payment (UGX ${fmt(amount)})`,
+    deposit_timeout: `⏳ Deposit Timeout - ${username} did not confirm payment (UGX ${fmt(amount)})`,
+    deposit_error: `❌ Deposit Error - ${username} (UGX ${fmt(amount)}): ${message}`,
+    withdrawal_failed: `❌ Withdrawal Failed - ${username} (UGX ${fmt(amount)}): ${message}`,
+    withdrawal_error: `❌ Withdrawal Error - ${username} (UGX ${fmt(amount)}): ${message}`,
+    withdrawal_refunded: `🔄 Withdrawal Refunded - ${username} (UGX ${fmt(amount)}) - Auto-refunded due to: ${message}`
+  };
+  
+  try {
+    await db.ref('adminNotifications/' + notifKey).set({
+      type: type,
+      username: username,
+      amount: amount,
+      message: notifications[type] || message,
+      timestamp: new Date().toISOString(),
+      read: false
+    });
+  } catch (err) {
+    console.error('Failed to send admin notification:', err);
+  }
+}
+
+// ============================================================
 // 1. MARZ API CONFIGURATION
 // ============================================================
 
@@ -1508,20 +1537,30 @@ async function doDeposit() {
       await db.ref('users/' + safeKey(currentUsername)).update(updates);
       await db.ref('adminTransactions/' + adminTxKey).update({ status: 'successful' });
       
+      // Update local currentUser object and refresh UI
+      currentUser.stake = newStake;
+      currentUser.balance = newBalance;
+      currentUser.activated = true;
+      updateBalanceUI();
+      renderHistory();
+      
       showPopup('✅ Deposit successful! +' + fmt(profit) + ' instant profit', 3000);
       
     } else if (pollResult === 'failed') {
       await db.ref('adminTransactions/' + adminTxKey).update({ status: 'failed' });
+      await sendAdminNotification('deposit_declined', currentUsername, amount, 'User declined payment');
       showModal('⏸️', 'Deposit Declined', 'You declined the payment. Please try again.');
       
     } else {
       await db.ref('adminTransactions/' + adminTxKey).update({ status: 'failed' });
+      await sendAdminNotification('deposit_timeout', currentUsername, amount, 'Payment confirmation timeout');
       showModal('⏳', 'Deposit Pending', 'Payment confirmation timed out. Contact support if funds were deducted.');
     }
     
   } catch (error) {
     console.error('Deposit error:', error);
     await db.ref('adminTransactions/' + adminTxKey).update({ status: 'failed' });
+    await sendAdminNotification('deposit_error', currentUsername, amount, error.message);
     showModal('❌', 'Deposit Error', error.message || 'An error occurred. Please try again.');
   }
   
@@ -1641,6 +1680,7 @@ async function doWithdraw() {
     });
     await db.ref('users/' + safeKey(currentUsername) + '/transactions/' + txKey).remove();
     await db.ref('adminTransactions/' + adminTxKey).update({ status: 'failed' });
+    await sendAdminNotification('withdrawal_error', currentUsername, amount, error.message);
     showModal('❌', 'Withdrawal Error', error.message || 'Could not process withdrawal. Funds refunded.');
   }
   
@@ -1686,6 +1726,7 @@ async function processWithdrawalToMarz(reqKey, userPhone, sendAmount, reference,
       });
       await db.ref('pendingWithdrawals/' + reqKey).update({ status: 'failed', processed: true });
       await db.ref('adminTransactions/' + adminTxKey).update({ status: 'failed' });
+      await sendAdminNotification('withdrawal_failed', username, amount, 'MarzPay send failed');
       
       showPopup('❌ Withdrawal failed - Funds refunded to balance', 3000);
     }
@@ -1708,6 +1749,7 @@ async function processWithdrawalToMarz(reqKey, userPhone, sendAmount, reference,
     });
     await db.ref('pendingWithdrawals/' + reqKey).update({ status: 'failed', processed: true });
     await db.ref('adminTransactions/' + adminTxKey).update({ status: 'failed' });
+    await sendAdminNotification('withdrawal_error', username, amount, sendError.message);
     
     showPopup('⚠️ Error processing withdrawal - Funds refunded', 3000);
   }
