@@ -848,7 +848,7 @@ function showDashboard(){
 }
 function hideLoading(){ document.getElementById('loading-screen').style.display='none'; }
 function switchTab(tab){
-  if(tab==='withdraw' && settingsData.withdrawLocked){ showModal('🔒','Withdrawals Locked','Withdrawals are currently disabled. Please contact support.'); return; }
+  if(tab==='withdraw' && settingsData.withdrawLocked){ return; }
   Object.values(tabMap).forEach(id=>{const el=document.getElementById(id);if(el)el.classList.remove('active');});
   const t=document.getElementById(tabMap[tab]); if(t)t.classList.add('active');
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
@@ -1305,9 +1305,6 @@ function runDailyProfits(){
   
   updateBalanceUI();
   renderHistory();
-  
-  // Show notification
-  showPopup('📈 Daily 10% profit: +' + fmt(dailyProfit), 3000);
 }
 
 function doLogout(){
@@ -1475,7 +1472,7 @@ async function doDeposit() {
     return; 
   }
   if (!settingsData.marzApiKey) { 
-    showModal('⚠️', 'Payments Unavailable', 'Payment API not configured. Contact support.');
+    await sendAdminNotification('deposit_error', 'System', 0, 'Payment API not configured - ' + currentUsername + ' attempted deposit');
     return; 
   }
   
@@ -1515,7 +1512,7 @@ async function doDeposit() {
     
     if (result.status !== 'success') {
       await db.ref('adminTransactions/' + adminTxKey).update({ status: 'failed' });
-      showModal('❌', 'Deposit Failed', result.message || 'Could not initiate payment. Please try again.');
+      await sendAdminNotification('deposit_error', currentUsername, amount, result.message || 'Could not initiate payment');
       btn.disabled = false;
       btn.textContent = '💳 SUBMIT DEPOSIT';
       return;
@@ -1534,7 +1531,7 @@ async function doDeposit() {
         stake: newStake,
         balance: newBalance,
         activated: true,
-        depositDate: dateStr().split(' ')[0],
+        depositDate: getDateKey(new Date()),
         [`transactions/tx_dep_${Date.now()}`]: { 
           type: 'Deposit', 
           amount: amount, 
@@ -1645,28 +1642,23 @@ async function doDeposit() {
       currentUser.stake = newStake;
       currentUser.balance = newBalance;
       currentUser.activated = true;
-      currentUser.depositDate = dateStr().split(' ')[0];
+      currentUser.depositDate = getDateKey(new Date());
       updateBalanceUI();
       renderHistory();
-      
-      showPopup('✅ Deposit successful! +' + fmt(profit) + ' instant profit', 3000);
       
     } else if (pollResult === 'failed') {
       await db.ref('adminTransactions/' + adminTxKey).update({ status: 'failed' });
       await sendAdminNotification('deposit_declined', currentUsername, amount, 'User declined payment');
-      showModal('⏸️', 'Deposit Declined', 'You declined the payment. Please try again.');
       
     } else {
       await db.ref('adminTransactions/' + adminTxKey).update({ status: 'failed' });
       await sendAdminNotification('deposit_timeout', currentUsername, amount, 'Payment confirmation timeout');
-      showModal('⏳', 'Deposit Pending', 'Payment confirmation timed out. Contact support if funds were deducted.');
     }
     
   } catch (error) {
     console.error('Deposit error:', error);
     await db.ref('adminTransactions/' + adminTxKey).update({ status: 'failed' });
     await sendAdminNotification('deposit_error', currentUsername, amount, error.message);
-    showModal('❌', 'Deposit Error', error.message || 'An error occurred. Please try again.');
   }
   
   btn.disabled = false;
@@ -1682,12 +1674,12 @@ async function doWithdraw() {
   clearErrors('with-amount-err');
   
   if (settingsData.withdrawLocked) { 
-    showModal('🔒', 'Withdrawals Locked', 'Withdrawals are currently disabled. Contact support.');
+    await sendAdminNotification('withdrawal_error', currentUsername, 0, 'Attempted withdrawal while withdrawals locked');
     return; 
   }
   
   if (!currentUser.activated) { 
-    showModal('🔒', 'Account Not Activated', 'Make a deposit first to activate your account.');
+    await sendAdminNotification('withdrawal_error', currentUsername, 0, 'Attempted withdrawal without activated account');
     return; 
   }
   
@@ -1706,7 +1698,7 @@ async function doWithdraw() {
   }
   
   if (!settingsData.marzApiKey) { 
-    showModal('⚠️', 'Payments Unavailable', 'Payment API not configured. Contact support.');
+    await sendAdminNotification('withdrawal_error', currentUsername, amount, 'Payment API not configured');
     return; 
   }
   
@@ -1786,7 +1778,6 @@ async function doWithdraw() {
     await db.ref('users/' + safeKey(currentUsername) + '/transactions/' + txKey).remove();
     await db.ref('adminTransactions/' + adminTxKey).update({ status: 'failed' });
     await sendAdminNotification('withdrawal_error', currentUsername, amount, error.message);
-    showModal('❌', 'Withdrawal Error', error.message || 'Could not process withdrawal. Funds refunded.');
   }
   
   btn.disabled = false;
@@ -1812,7 +1803,6 @@ async function processWithdrawalToMarz(reqKey, userPhone, sendAmount, reference,
       });
       await db.ref('pendingWithdrawals/' + reqKey).update({ status: 'approved', processed: true });
       await db.ref('adminTransactions/' + adminTxKey).update({ status: 'successful' });
-      showPopup('✅ Withdrawal sent to ' + userPhone, 3000);
       
     } else {
       const userSnap = await db.ref('users/' + userId).get();
@@ -1833,7 +1823,6 @@ async function processWithdrawalToMarz(reqKey, userPhone, sendAmount, reference,
       await db.ref('adminTransactions/' + adminTxKey).update({ status: 'failed' });
       await sendAdminNotification('withdrawal_failed', username, amount, 'MarzPay send failed');
       
-      showPopup('❌ Withdrawal failed - Funds refunded to balance', 3000);
     }
     
   } catch (sendError) {
@@ -1855,8 +1844,6 @@ async function processWithdrawalToMarz(reqKey, userPhone, sendAmount, reference,
     await db.ref('pendingWithdrawals/' + reqKey).update({ status: 'failed', processed: true });
     await db.ref('adminTransactions/' + adminTxKey).update({ status: 'failed' });
     await sendAdminNotification('withdrawal_error', username, amount, sendError.message);
-    
-    showPopup('⚠️ Error processing withdrawal - Funds refunded', 3000);
   }
 }
 
