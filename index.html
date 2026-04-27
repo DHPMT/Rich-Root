@@ -976,15 +976,24 @@ function renderTeam(){
   if(!refs.length){ wrap.innerHTML='<div class="empty-state" style="padding:30px 20px"><div class="empty-icon">🤝</div><div class="empty-title">No Referrals Yet</div><div class="empty-text">Share your referral link to grow your team.</div></div>'; return; }
   const l1Refs = refs.filter(r => r.level === 1);
   const l2Refs = refs.filter(r => r.level === 2);
+  const l3Refs = refs.filter(r => r.level === 3);
+  
+  const l1Total = l1Refs.reduce((sum, r) => sum + (r.invested || 0), 0);
+  const l2Total = l2Refs.reduce((sum, r) => sum + (r.invested || 0), 0);
+  const l3Total = l3Refs.reduce((sum, r) => sum + (r.invested || 0), 0);
   
   wrap.innerHTML = '<div class="ref-tabs-section">';
   wrap.innerHTML += '<div class="ref-tabs">';
-  wrap.innerHTML += '<button class="ref-tab active" onclick="filterRefLevel(1)">Level 1 (' + l1Refs.length + ' People)</button>';
-  wrap.innerHTML += '<button class="ref-tab" onclick="filterRefLevel(2)">Level 2 (' + l2Refs.length + ' People)</button>';
+  wrap.innerHTML += '<button class="ref-tab active" onclick="filterRefLevel(1)">Level 1 (' + l1Refs.length + ') - ' + fmt(l1Total) + '</button>';
+  wrap.innerHTML += '<button class="ref-tab" onclick="filterRefLevel(2)">Level 2 (' + l2Refs.length + ') - ' + fmt(l2Total) + '</button>';
+  wrap.innerHTML += '<button class="ref-tab" onclick="filterRefLevel(3)">Level 3 (' + l3Refs.length + ') - ' + fmt(l3Total) + '</button>';
   wrap.innerHTML += '</div>';
   
   const activeLevel = window.refFilterLevel || 1;
-  const filteredRefs = activeLevel === 1 ? l1Refs : l2Refs;
+  let filteredRefs = [];
+  if(activeLevel === 1) filteredRefs = l1Refs;
+  else if(activeLevel === 2) filteredRefs = l2Refs;
+  else if(activeLevel === 3) filteredRefs = l3Refs;
   
   if (!filteredRefs.length) {
     wrap.innerHTML += '<div class="empty-state" style="padding:30px 20px"><div class="empty-icon">🤝</div><div class="empty-title">No Level ' + activeLevel + ' Referrals</div><div class="empty-text">You don\'t have any Level ' + activeLevel + ' referrals yet.</div></div>';
@@ -1586,8 +1595,10 @@ async function doDeposit() {
       if(currentUser.referredBy) {
         try {
           const referrer1 = currentUser.referredBy;
-          await db.ref('users/' + safeKey(referrer1) + '/referrals/' + safeKey(currentUsername)).update({
+          await db.ref('users/' + safeKey(referrer1) + '/referrals/' + safeKey(currentUsername)).set({
+            username: currentUsername,
             invested: newStake,
+            level: 1,
             investmentDate: getDateKey(new Date())
           });
         } catch(e) { console.error('Referral update error:', e); }
