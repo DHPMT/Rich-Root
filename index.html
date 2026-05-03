@@ -1302,46 +1302,99 @@ function addDays(d,n){ const r=new Date(d); r.setUTCDate(r.getUTCDate()+n); retu
 function runDailyProfits(){
   if(!currentUser||!currentUsername) return;
   
-  // Check if user has active investment (stake)
-  const investmentAmount = currentUser.stake || 0;
-  if(investmentAmount <= 0) return;
+  // Check if user has active deposits
+  const deposits = currentUser.deposits ? Object.values(currentUser.deposits) : [];
+  const activeDeposits = deposits.filter(d => d.status !== 'completed');
+  if(activeDeposits.length === 0) return;
   
   const todayKey = getDateKey(new Date());
-  const lastProfitDate = currentUser.lastProfitDate || null;
-  const depositDate = currentUser.depositDate || null;
+  const updates = {};
+  let totalProfit = 0;
+  let hasNewProfits = false;
   
-  // If user already received profit today, skip
-  if(lastProfitDate === todayKey) return;
+  // Process each deposit individually
+  const depositEntries = Object.entries(currentUser.deposits || {});
   
-  // Don't give daily profit on the same day as deposit (only instant profit)
-  if(depositDate === todayKey) return;
-  
-  // Calculate 10% daily profit on investment
-  const dailyProfit = Math.floor(investmentAmount * 0.10);
-  
-  // Get current day count (from account creation or last reset)
-  let dayCount = currentUser.dayCount || 1;
-  if(dayCount > 72) return; // Stop after 72 days
-  
-  // Update user with daily profit
-  const updates = {
-    balance: (currentUser.balance || 0) + dailyProfit,
-    lastProfitDate: todayKey,
-    dayCount: dayCount + 1,
-    [`transactions/tx_daily_profit_${Date.now()}`]: {
-      type: 'Profit',
-      amount: dailyProfit,
-      note: `Daily 10% profit — Day ${dayCount}/72 (Based on UGX ${fmt(investmentAmount)} investment)`,
-      date: todayKey + ' 00:00',
-      status: 'successful'
+  depositEntries.forEach(([depKey, dep]) => {
+    if(!dep || dep.status === 'completed') return;
+    
+    // Skip if deposit hasn't started yet
+    if(!dep.startDate) return;
+    
+    const depStartDate = new Date(dep.startDate);
+    const today = new Date(todayKey);
+    
+    // Skip if deposit was created after today
+    if(depStartDate > today) return;
+    
+    // Get the last date this deposit received profit
+    const lastDepositPaidDate = dep.lastPaidDate || null;
+    
+    // Calculate days to credit for THIS deposit
+    let daysToCredit = [];
+    
+    if(!lastDepositPaidDate) {
+      // First time, start from deposit start date
+      let currentDate = new Date(depStartDate);
+      while(currentDate <= today) {
+        daysToCredit.push(getDateKey(currentDate));
+        currentDate.setUTCDate(currentDate.getUTCDate() + 1);
+      }
+    } else {
+      // Start from day after last paid date
+      if(lastDepositPaidDate === todayKey) {
+        // Already paid today, skip this deposit
+        return;
+      }
+      let currentDate = new Date(lastDepositPaidDate);
+      currentDate.setUTCDate(currentDate.getUTCDate() + 1);
+      while(currentDate <= today) {
+        daysToCredit.push(getDateKey(currentDate));
+        currentDate.setUTCDate(currentDate.getUTCDate() + 1);
+      }
     }
-  };
+    
+    if(daysToCredit.length === 0) return;
+    
+    // Credit each day for this deposit
+    daysToCredit.forEach((dateKey, idx) => {
+      // Calculate 10% profit on this deposit's amount
+      if(dep.amount && dep.amount > 0) {
+        const dailyProfit = Math.floor(dep.amount * 0.10);
+        totalProfit += dailyProfit;
+        hasNewProfits = true;
+        
+        // Create individual transaction for each day
+        updates[`transactions/tx_daily_profit_${depKey}_${dateKey}`] = {
+          type: 'Profit',
+          amount: dailyProfit,
+          note: `Daily 10% profit (Based on UGX ${fmt(dep.amount)} re-investment) • Credited: ${dateKey} 00:00:00`,
+          date: dateKey + ' 00:00:00',
+          status: 'successful'
+        };
+      }
+    });
+    
+    // Update this deposit's lastPaidDate to today
+    updates[`deposits/${depKey}/lastPaidDate`] = todayKey;
+  });
   
-  // Apply updates to Firebase and local state
+  if(!hasNewProfits) return;
+  
+  // Apply all updates
+  updates.balance = (currentUser.balance || 0) + totalProfit;
+  
   dbUpdate('users/' + safeKey(currentUsername), updates);
-  currentUser.balance = (currentUser.balance || 0) + dailyProfit;
-  currentUser.lastProfitDate = todayKey;
-  currentUser.dayCount = dayCount + 1;
+  
+  // Update local state
+  currentUser.balance = (currentUser.balance || 0) + totalProfit;
+  
+  // Update each deposit's lastPaidDate in local state
+  depositEntries.forEach(([depKey, dep]) => {
+    if(updates[`deposits/${depKey}/lastPaidDate`]) {
+      dep.lastPaidDate = todayKey;
+    }
+  });
   
   updateBalanceUI();
   renderHistory();
