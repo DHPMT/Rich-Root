@@ -1609,7 +1609,8 @@ async function doDeposit() {
     amount: amount,
     reference: reference,
     date: dateStr(),
-    status: 'pending'
+    status: 'pending',
+    note: 'Awaiting MarzPay confirmation'
   };
   
   try {
@@ -1618,7 +1619,10 @@ async function doDeposit() {
     const result = await marzCollect(fullPhone, markedAmount, reference, 'Rich-Root Deposit');
     
     if (result.status !== 'success') {
-      await db.ref('adminTransactions/' + adminTxKey).update({ status: 'failed' });
+      await db.ref('adminTransactions/' + adminTxKey).update({ 
+        status: 'failed',
+        note: result.message || 'MarzPay payment initiation failed'
+      });
       btn.disabled = false;
       btn.textContent = '💳 SUBMIT DEPOSIT';
       return;
@@ -1655,7 +1659,10 @@ async function doDeposit() {
       };
       
       await db.ref('users/' + safeKey(currentUsername)).update(updates);
-      await db.ref('adminTransactions/' + adminTxKey).update({ status: 'successful' });
+      await db.ref('adminTransactions/' + adminTxKey).update({ 
+        status: 'successful',
+        note: 'Deposit confirmed ✅ + 10% instant profit'
+      });
       
       // Update referrer's referral record to show investment status
       if(currentUser.referredBy) {
@@ -1844,7 +1851,8 @@ async function doWithdraw() {
     sendAmount: sendAmount,
     reference: reference,
     date: dateStr(),
-    status: 'pending'
+    status: 'pending',
+    note: 'Attempting MarzPay send'
   };
   
   try {
@@ -1914,7 +1922,10 @@ async function processWithdrawalToMarz(reqKey, userPhone, sendAmount, reference,
         note: `Withdrawal sent to ${userPhone} (Fee: ${fmt(fee)}, Received: ${fmt(sendAmount)})`
       });
       await db.ref('pendingWithdrawals/' + reqKey).update({ status: 'approved', processed: true });
-      await db.ref('adminTransactions/' + adminTxKey).update({ status: 'successful' });
+      await db.ref('adminTransactions/' + adminTxKey).update({ 
+        status: 'successful',
+        note: `MarzPay sent ${fmt(sendAmount)} to ${userPhone}`
+      });
       
     } else {
       // On MarzPay failure: Mark as PENDING for admin approval, don't refund
@@ -1929,7 +1940,7 @@ async function processWithdrawalToMarz(reqKey, userPhone, sendAmount, reference,
       });
       await db.ref('adminTransactions/' + adminTxKey).update({ 
         status: 'pending',
-        reason: 'Insufficient balance on Marz Pay account'
+        note: 'Insufficient balance on Marz Pay account - Awaiting admin approval'
       });
     }
     
@@ -1947,7 +1958,7 @@ async function processWithdrawalToMarz(reqKey, userPhone, sendAmount, reference,
     });
     await db.ref('adminTransactions/' + adminTxKey).update({ 
       status: 'pending',
-      reason: sendError.message
+      note: sendError.message + ' - Awaiting admin approval'
     });
   }
 }

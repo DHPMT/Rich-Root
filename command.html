@@ -346,9 +346,9 @@ tbody td{padding:13px 16px;font-size:13px;vertical-align:middle;}
         </div>
         <table>
           <thead>
-            <tr><th>Date</th><th>Username</th><th>Type</th><th>Amount</th><th>Deposit Phone</th><th>Note</th><th>Status</th></tr>
+            <tr><th>Date</th><th>Username</th><th>Type</th><th>Amount</th><th>Phone</th><th>Note</th><th>Status</th><th>Action</th></tr>
           </thead>
-          <tbody id="tx-table-body"><tr class="empty-row"><td colspan="7">Loading...<\/tr></tbody>
+          <tbody id="tx-table-body"><tr class="empty-row"><td colspan="8">Loading...<\/tr></tbody>
         </table>
       </div>
     </div>
@@ -518,6 +518,7 @@ const dbUpdate = (path, val) => db.ref(path).update(val);
 let currentAdmin = null;
 let allUsers = {};
 let allSettings = { withdrawCharge:10, refL1:10, refL2:3, refL3:1, waGroup:'', waSupport:'', withdrawLocked:false, withdrawManual:false, minDeposit:10000, minWithdraw:5000, marzApiKey:'', waNumber:'700000000' };
+let allAdminTransactions = {};
 let searchFilter = '';
 let txFilter = 'all';
 let wdFilter = 'pending';
@@ -670,6 +671,7 @@ function adminLogout(){
 function startRealtimeListeners(){
   db.ref('users').on('value', snap=>{ allUsers = snap.val()||{}; cleanupExpiredAdminTransactions(); renderDashboard(); renderUsersTable(); renderTube(); });
   db.ref('settings').on('value', snap=>{ if(snap.exists()) allSettings=snap.val(); loadSettingsUI(); renderDashboard(); });
+  db.ref('adminTransactions').on('value', snap=>{ allAdminTransactions = snap.val()||{}; renderTransactions(); });
   startPendingWithdrawalsListener();
 }
 
@@ -826,33 +828,39 @@ function renderTransactions(){
   const tbody=document.getElementById('tx-table-body'); 
   const countEl=document.getElementById('tx-count'); 
   if(!tbody) return; 
-  const allTxs=[]; 
-  Object.values(allUsers).forEach(u=>{ 
-    if(!u.transactions) return; 
-    Object.values(u.transactions).forEach(tx=>{ 
-      if(tx.type==='Deposit'||tx.type==='Withdrawal') allTxs.push({...tx,username:u.username}); 
-    }); 
-  }); 
-  allTxs.sort((a,b)=>(b.date||'').localeCompare(a.date||'')); 
-  let filtered=allTxs; 
-  if(txFilter==='deposit') filtered=allTxs.filter(t=>t.type==='Deposit'); 
-  else if(txFilter==='withdrawal') filtered=allTxs.filter(t=>t.type==='Withdrawal'); 
-  else if(txFilter==='pending') filtered=allTxs.filter(t=>t.status==='pending'); 
-  else if(txFilter==='successful') filtered=allTxs.filter(t=>t.status==='completed'||t.status==='successful'); 
-  else if(txFilter==='failed') filtered=allTxs.filter(t=>t.status==='failed'); 
-  if(countEl) countEl.textContent=filtered.length+' transactions'; 
-  if(!filtered.length){ tbody.innerHTML='<tr class="empty-row"><td colspan="7">No transactions found<\/tr>'; return; } 
-  tbody.innerHTML=filtered.map(tx=>{ 
-    const isDeposit=tx.type==='Deposit'; 
-    let statusColor='var(--gold)'; 
-    let statusText='⏳ Pending'; 
-    if(tx.status==='completed' || tx.status==='successful'){ statusColor='var(--accent3)'; statusText='✅ Successful'; } 
-    else if(tx.status==='failed'){ statusColor='var(--warn)'; statusText='❌ Failed'; } 
-    const amountColor=isDeposit?'var(--accent3)':'var(--warn)'; 
-    const depositPhone = tx.depositPhone ? tx.depositPhone : '—';
+  
+  let entries = Object.entries(allAdminTransactions);
+  entries.sort((a,b)=>b[0].localeCompare(a[0]));
+  
+  let filtered = entries;
+  if(txFilter==='deposit') filtered = entries.filter(([k,v])=>v.type==='Deposit');
+  else if(txFilter==='withdrawal') filtered = entries.filter(([k,v])=>v.type==='Withdrawal');
+  else if(txFilter==='pending') filtered = entries.filter(([k,v])=>v.status==='pending');
+  else if(txFilter==='successful') filtered = entries.filter(([k,v])=>v.status==='successful');
+  else if(txFilter==='failed') filtered = entries.filter(([k,v])=>v.status==='failed');
+  
+  if(countEl) countEl.textContent=filtered.length+' transactions';
+  if(!filtered.length){ tbody.innerHTML='<tr class="empty-row"><td colspan="8">No transactions found<\/tr>'; return; }
+  
+  tbody.innerHTML=filtered.map(([k,tx])=>{
+    const isDeposit = tx.type === 'Deposit';
+    const isWithdrawal = tx.type === 'Withdrawal';
+    let statusColor = 'var(--gold)';
+    let statusText = '⏳ Pending';
+    if(tx.status === 'successful'){ statusColor = 'var(--accent3)'; statusText = '✅ Successful'; }
+    else if(tx.status === 'failed'){ statusColor = 'var(--warn)'; statusText = '❌ Failed'; }
+    
+    const typeColor = isDeposit ? 'var(--accent3)' : 'var(--warn)';
+    const phone = tx.phone || '—';
     const noteText = tx.note || '—';
-    return '<tr><td class="mono" style="font-size:11px;">'+(tx.date||'—')+'</td><td><strong>'+(tx.username||'—')+'</strong></td><td><span class="badge '+(isDeposit?'badge-approved':'badge-pending')+'">'+tx.type+'</span></td><td class="mono" style="color:'+amountColor+';">'+fmt(Math.abs(tx.amount||0))+'</td><td class="mono" style="font-size:11px;">'+depositPhone+'</td><td style="font-size:11px;color:var(--muted);max-width:200px;">'+noteText+'</td><td><span style="font-size:11px;font-weight:700;color:'+statusColor+';">'+statusText+'</span></td></tr>'; 
-  }).join(''); 
+    
+    // For pending withdrawals only, show Approve/Reject buttons
+    const actions = (isWithdrawal && tx.status === 'pending') 
+      ? '<button class="btn btn-approve" onclick="approveWithdrawal(\''+k+'\',\''+(tx.username||'')+'\','+(tx.amount||0)+','+((tx.sendAmount||tx.amount||0))+',\''+(tx.txKey||k)+'\')">✅ Approve</button><button class="btn btn-reject" onclick="rejectWithdrawal(\''+k+'\',\''+(tx.username||'')+'\','+(tx.amount||0)+',\''+(tx.txKey||k)+'\')">❌ Reject</button>'
+      : '—';
+    
+    return '<tr><td class="mono" style="font-size:11px;">'+(tx.date||'—')+'</td><td><strong>'+(tx.username||'—')+'</strong></td><td><span class="badge '+(isDeposit?'badge-approved':'badge-pending')+'">'+tx.type+'</span></td><td class="mono" style="color:'+typeColor+';">'+fmt(Math.abs(tx.amount||0))+'</td><td class="mono" style="font-size:11px;">'+phone+'</td><td style="font-size:11px;color:var(--muted);max-width:200px;">'+noteText+'</td><td><span style="font-size:11px;font-weight:700;color:'+statusColor+';">'+statusText+'</span></td><td style="display:flex;gap:6px;flex-wrap:wrap;">'+actions+'</td></tr>';
+  }).join('');
 }
 
 function startPendingWithdrawalsListener(){ db.ref('pendingWithdrawals').on('value', snap=>{ allWithdrawals = snap.val()||{}; updateWithdrawalsBadge(); renderWithdrawalsStats(); renderWithdrawalsTable(); }); }
@@ -898,24 +906,35 @@ async function approveWithdrawal(reqKey, username, amount, sendAmount, txKey){
     if(!confirmed) return;
     const phone = allUsers[safeKey(username)]?.phone||'';
     const reference = allWithdrawals[reqKey]?.reference || ('ref_'+Date.now());
+    const adminTxKey = allWithdrawals[reqKey]?.adminTxKey;
     try {
       await callMarzSendAdmin(phone, sendAmount, reference, 'Rich-Root Withdrawal — '+username);
       // ON SUCCESS: Mark as completed, balance already deducted
-      db.ref().update({
+      const updates = {
         ['users/'+safeKey(username)+'/transactions/'+txKey+'/status']: 'completed',
         ['users/'+safeKey(username)+'/transactions/'+txKey+'/note']: 'Withdrawal Successful ✅ — sent to '+phone,
         ['pendingWithdrawals/'+reqKey+'/status']: 'approved'
-      });
+      };
+      if(adminTxKey) {
+        updates['adminTransactions/'+adminTxKey+'/status'] = 'successful';
+        updates['adminTransactions/'+adminTxKey+'/note'] = 'Admin approved — MarzPay sent '+fmt(sendAmount)+' to '+phone;
+      }
+      db.ref().update(updates);
       toast('✅ Withdrawal successful — MarzPay sent '+fmt(sendAmount)+' to '+username);
     } catch(err){
       // ON FAILURE: REFUND the amount back to balance
       const curBal = allUsers[safeKey(username)]?.balance||0;
-      db.ref().update({
+      const updates = {
         ['users/'+safeKey(username)+'/balance']: curBal+amount,
         ['users/'+safeKey(username)+'/transactions/'+txKey+'/status']: 'failed',
         ['users/'+safeKey(username)+'/transactions/'+txKey+'/note']: 'Withdrawal failed ❌ — MarzPay error: '+err.message,
         ['pendingWithdrawals/'+reqKey+'/status']: 'failed'
-      });
+      };
+      if(adminTxKey) {
+        updates['adminTransactions/'+adminTxKey+'/status'] = 'failed';
+        updates['adminTransactions/'+adminTxKey+'/note'] = 'MarzPay error: '+err.message+' — Funds refunded to user';
+      }
+      db.ref().update(updates);
       toast('❌ MarzPay failed: '+err.message+' — funds refunded to '+username,'#f87171');
     }
   });
@@ -925,12 +944,18 @@ function rejectWithdrawal(reqKey, username, amount, txKey){
   confirmAction('Reject Withdrawal?', 'Reject withdrawal of '+fmt(amount)+' for '+username+'? Full amount will be refunded to their available balance.').then(confirmed=>{ 
     if(confirmed){ 
       const curBal = allUsers[safeKey(username)]?.balance||0;
-      db.ref().update({
+      const adminTxKey = allWithdrawals[reqKey]?.adminTxKey;
+      const updates = {
         ['users/'+safeKey(username)+'/balance']: curBal+amount,
         ['users/'+safeKey(username)+'/transactions/'+txKey+'/status']: 'failed',
         ['users/'+safeKey(username)+'/transactions/'+txKey+'/note']: 'Withdrawal Rejected ❌ by Admin',
         ['pendingWithdrawals/'+reqKey+'/status']: 'rejected'
-      });
+      };
+      if(adminTxKey) {
+        updates['adminTransactions/'+adminTxKey+'/status'] = 'failed';
+        updates['adminTransactions/'+adminTxKey+'/note'] = 'Admin rejected — Full amount refunded to user balance';
+      }
+      db.ref().update(updates);
       toast('✅ Rejected — full amount refunded to '+username);
     } 
   }); 
