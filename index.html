@@ -1365,6 +1365,14 @@ function runDailyProfits(){
     // Skip if deposit was created after today
     if(depStartDate > today) return;
     
+    // CRITICAL: Check if deposit is still within 72-day earning period
+    const daysElapsed = Math.floor((today - depStartDate) / (1000 * 60 * 60 * 24));
+    if(daysElapsed >= 72) {
+      // 72 days completed - mark as finished earning
+      updates[`deposits/${depKey}/status`] = 'completed';
+      return;
+    }
+    
     // Get the last date this deposit received profit
     const lastDepositPaidDate = dep.lastPaidDate || null;
     
@@ -1375,7 +1383,11 @@ function runDailyProfits(){
       // First time, start from deposit start date
       let currentDate = new Date(depStartDate);
       while(currentDate <= today) {
-        daysToCredit.push(getDateKey(currentDate));
+        // Don't credit days beyond 72-day period
+        const dayCount = Math.floor((currentDate - depStartDate) / (1000 * 60 * 60 * 24));
+        if(dayCount < 72) {
+          daysToCredit.push(getDateKey(currentDate));
+        }
         currentDate.setUTCDate(currentDate.getUTCDate() + 1);
       }
     } else {
@@ -1387,7 +1399,11 @@ function runDailyProfits(){
       let currentDate = new Date(lastDepositPaidDate);
       currentDate.setUTCDate(currentDate.getUTCDate() + 1);
       while(currentDate <= today) {
-        daysToCredit.push(getDateKey(currentDate));
+        // Don't credit days beyond 72-day period
+        const dayCount = Math.floor((currentDate - depStartDate) / (1000 * 60 * 60 * 24));
+        if(dayCount < 72) {
+          daysToCredit.push(getDateKey(currentDate));
+        }
         currentDate.setUTCDate(currentDate.getUTCDate() + 1);
       }
     }
@@ -1406,7 +1422,7 @@ function runDailyProfits(){
         updates[`transactions/tx_daily_profit_${depKey}_${dateKey}`] = {
           type: 'Profit',
           amount: dailyProfit,
-          note: `Daily 10% profit (Based on UGX ${fmt(dep.amount)} re-investment) • Credited: ${dateKey} 00:00:00`,
+          note: `Daily 10% profit (Based on UGX ${fmt(dep.amount)}) • Credited: ${dateKey} 00:00:00`,
           date: dateKey + ' 00:00:00',
           status: 'successful'
         };
@@ -1415,6 +1431,12 @@ function runDailyProfits(){
     
     // Update this deposit's lastPaidDate to today
     updates[`deposits/${depKey}/lastPaidDate`] = todayKey;
+    
+    // If 72 days reached after this profit, mark as completed
+    const newDaysElapsed = daysToCredit.length > 0 ? daysElapsed + daysToCredit.length : daysElapsed;
+    if(newDaysElapsed >= 72) {
+      updates[`deposits/${depKey}/status`] = 'completed';
+    }
   });
   
   if(!hasNewProfits) return;
@@ -1431,6 +1453,9 @@ function runDailyProfits(){
   depositEntries.forEach(([depKey, dep]) => {
     if(updates[`deposits/${depKey}/lastPaidDate`]) {
       dep.lastPaidDate = todayKey;
+    }
+    if(updates[`deposits/${depKey}/status`]) {
+      dep.status = 'completed';
     }
   });
   
