@@ -845,6 +845,7 @@ function showAuth(id){
   }
 }
 function showDashboard(){
+  cleanupExpiredTransactions();
   document.querySelectorAll('.auth-page').forEach(p=>{p.classList.remove('active');p.style.display='none';});
   document.getElementById('dashboard-page').style.display='block';
   document.getElementById('dashboard-page').classList.add('active');
@@ -937,7 +938,44 @@ function filterHistory(type, tabEl){
   renderHistory();
 }
 
+// ============================================================
+// AUTO-DELETE EXPIRED TRANSACTIONS (18 hours)
+// ============================================================
+
+async function cleanupExpiredTransactions() {
+  if (!currentUser || !currentUser.transactions) return;
+  
+  const now = new Date();
+  const EXPIRY_TIME = 18 * 60 * 60 * 1000; // 18 hours in milliseconds
+  const userId = safeKey(currentUsername);
+  const txsToDelete = [];
+  
+  Object.keys(currentUser.transactions).forEach(txKey => {
+    const tx = currentUser.transactions[txKey];
+    if (!tx.date) return;
+    
+    // Parse transaction date
+    const txDate = new Date(tx.date);
+    const ageMs = now - txDate;
+    
+    // Delete if older than 18 hours AND not pending withdrawal
+    if (ageMs > EXPIRY_TIME && tx.status !== 'pending') {
+      txsToDelete.push(txKey);
+    }
+  });
+  
+  // Delete expired transactions
+  if (txsToDelete.length > 0) {
+    const updates = {};
+    txsToDelete.forEach(txKey => {
+      updates[`users/${userId}/transactions/${txKey}`] = null;
+    });
+    await db.ref().update(updates);
+  }
+}
+
 function renderHistory(){
+  cleanupExpiredTransactions();
   const wrap=document.getElementById('history-list');
   if(!currentUser){ wrap.innerHTML=''; return; }
   const allTxs=currentUser.transactions?Object.values(currentUser.transactions).reverse():[];

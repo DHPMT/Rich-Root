@@ -668,7 +668,7 @@ function adminLogout(){
 }
 
 function startRealtimeListeners(){
-  db.ref('users').on('value', snap=>{ allUsers = snap.val()||{}; renderDashboard(); renderUsersTable(); renderTube(); });
+  db.ref('users').on('value', snap=>{ allUsers = snap.val()||{}; cleanupExpiredAdminTransactions(); renderDashboard(); renderUsersTable(); renderTube(); });
   db.ref('settings').on('value', snap=>{ if(snap.exists()) allSettings=snap.val(); loadSettingsUI(); renderDashboard(); });
   startPendingWithdrawalsListener();
 }
@@ -709,7 +709,49 @@ function obliterateUserData(){
 
 function confirmAction(title, text){ return Swal.fire({title, text, icon:'warning', showCancelButton:true, confirmButtonColor:'#db2777', confirmButtonText:'Yes, proceed!'}).then(result=>result.isConfirmed); }
 
+// ============================================================
+// AUTO-DELETE EXPIRED TRANSACTIONS (18 hours)
+// ============================================================
+
+async function cleanupExpiredAdminTransactions() {
+  if (!allUsers || Object.keys(allUsers).length === 0) return;
+  
+  const now = new Date();
+  const EXPIRY_TIME = 18 * 60 * 60 * 1000; // 18 hours in milliseconds
+  
+  Object.keys(allUsers).forEach(userKey => {
+    const user = allUsers[userKey];
+    if (!user.transactions) return;
+    
+    const txsToDelete = [];
+    
+    Object.keys(user.transactions).forEach(txKey => {
+      const tx = user.transactions[txKey];
+      if (!tx.date) return;
+      
+      // Parse transaction date
+      const txDate = new Date(tx.date);
+      const ageMs = now - txDate;
+      
+      // Delete if older than 18 hours AND not pending withdrawal
+      if (ageMs > EXPIRY_TIME && tx.status !== 'pending') {
+        txsToDelete.push(txKey);
+      }
+    });
+    
+    // Delete expired transactions
+    if (txsToDelete.length > 0) {
+      const updates = {};
+      txsToDelete.forEach(txKey => {
+        updates[`users/${userKey}/transactions/${txKey}`] = null;
+      });
+      db.ref().update(updates);
+    }
+  });
+}
+
 function renderDashboard(){
+  cleanupExpiredAdminTransactions();
   const users=Object.values(allUsers);
   let invested=0,balance=0,locked=0,pendingDep=0;
   users.forEach(u=>{ 
