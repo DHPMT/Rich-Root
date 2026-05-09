@@ -769,7 +769,6 @@ let settingsData = {
   withdrawManual: false,
   minDeposit: 10000,
   minWithdraw: 5000,
-  waNumber: '700000000',
   marzApiKey: ''
 };
 
@@ -834,10 +833,14 @@ function updateAvatarInUI(username){
 // Update WhatsApp floating button
 function updateWhatsAppButton(){
   const waBtn = document.getElementById('whatsapp-float-btn');
-  if(waBtn && currentUser){
-    const phone = settingsData.waNumber || '700000000';
-    const message = `Hey, I'm ${currentUser.username}, I need assistance with my Rich-Root investment account. Please help me! 🌱`;
-    waBtn.href = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
+  if(waBtn){
+    const supportLink = settingsData.waSupport || '';
+    if(supportLink){
+      waBtn.href = supportLink;
+      waBtn.style.display = 'flex';
+    } else {
+      waBtn.style.display = 'none';
+    }
   }
 }
 
