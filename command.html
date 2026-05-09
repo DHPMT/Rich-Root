@@ -719,9 +719,7 @@ async function cleanupExpiredAdminTransactions() {
   if (!allUsers || Object.keys(allUsers).length === 0) return;
   
   const now = new Date();
-  const EXPIRY_TIME = 16 * 60 * 60 * 1000; // 16 hours in milliseconds
-  
-  const adminTxsToDelete = [];
+  const EXPIRY_TIME = 18 * 60 * 60 * 1000; // 18 hours in milliseconds
   
   Object.keys(allUsers).forEach(userKey => {
     const user = allUsers[userKey];
@@ -737,22 +735,13 @@ async function cleanupExpiredAdminTransactions() {
       const txDate = new Date(tx.date);
       const ageMs = now - txDate;
       
-      // PROTECTION: Never delete pending deposits (they need recovery)
-      if (tx.type === 'Deposit' && tx.status === 'pending') {
-        return;
-      }
-      
-      // Delete if older than 16 hours AND not pending withdrawal
+      // Delete if older than 18 hours AND not pending withdrawal
       if (ageMs > EXPIRY_TIME && tx.status !== 'pending') {
         txsToDelete.push(txKey);
-        // Also track admin transaction deletion (look for matching admin tx)
-        if (tx.adminTxRef) {
-          adminTxsToDelete.push(tx.adminTxRef);
-        }
       }
     });
     
-    // Delete expired transactions from user data
+    // Delete expired transactions
     if (txsToDelete.length > 0) {
       const updates = {};
       txsToDelete.forEach(txKey => {
@@ -761,37 +750,6 @@ async function cleanupExpiredAdminTransactions() {
       db.ref().update(updates);
     }
   });
-  
-  // Also clean old admin transactions directly (if older than 16 hours)
-  if (allAdminTransactions && Object.keys(allAdminTransactions).length > 0) {
-    const adminTxsToDeleteDirect = [];
-    Object.keys(allAdminTransactions).forEach(adminTxKey => {
-      const adminTx = allAdminTransactions[adminTxKey];
-      if (!adminTx.date) return;
-      
-      const txDate = new Date(adminTx.date);
-      const ageMs = now - txDate;
-      
-      // PROTECTION: Never delete pending deposits in admin
-      if (adminTx.type === 'Deposit' && adminTx.status === 'pending') {
-        return;
-      }
-      
-      // Delete if older than 16 hours AND not pending
-      if (ageMs > EXPIRY_TIME && adminTx.status !== 'pending') {
-        adminTxsToDeleteDirect.push(adminTxKey);
-      }
-    });
-    
-    // Delete expired admin transactions
-    if (adminTxsToDeleteDirect.length > 0) {
-      const updates = {};
-      adminTxsToDeleteDirect.forEach(adminTxKey => {
-        updates[`adminTransactions/${adminTxKey}`] = null;
-      });
-      db.ref().update(updates);
-    }
-  }
 }
 
 function renderDashboard(){
@@ -867,7 +825,6 @@ function renderTube(){ const investors=Object.values(allUsers).filter(u=>(u.stak
 
 function filterTx(type){ txFilter=type; renderTransactions(); }
 function renderTransactions(){ 
-  cleanupExpiredAdminTransactions();
   const tbody=document.getElementById('tx-table-body'); 
   const countEl=document.getElementById('tx-count'); 
   if(!tbody) return; 
