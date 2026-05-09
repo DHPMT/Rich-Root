@@ -1660,12 +1660,19 @@ async function doDeposit() {
     if (pollResult === 'success') {
       const newStake = oldStake + amount;
       const newBalance = (currentUser.balance || 0) + profit;
+      const depKey = 'dep_' + Date.now();
       
       const updates = {
         stake: newStake,
         balance: newBalance,
         activated: true,
         depositDate: getDateKey(new Date()),
+        [`deposits/${depKey}`]: {
+          amount: amount,
+          startDate: new Date().toISOString(),
+          lastPaidDate: null,
+          status: 'active'
+        },
         [`transactions/tx_dep_${Date.now()}`]: { 
           type: 'Deposit', 
           amount: amount, 
