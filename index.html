@@ -1695,24 +1695,50 @@ async function doDeposit() {
         note: 'Deposit confirmed ✅ + 10% instant profit'
       });
       
-      // Update referrer's referral record to show investment status
+      // Update referrer's referral record to show investment status for all 3 levels
       if(currentUser.referredBy) {
         try {
           const referrer1 = currentUser.referredBy;
+          // Update L1
           await db.ref('users/' + safeKey(referrer1) + '/referrals/' + safeKey(currentUsername)).set({
             username: currentUsername,
             invested: newStake,
             level: 1,
             investmentDate: getDateKey(new Date())
           });
+          
+          // Update L2
+          const ref1Snap = await db.ref('users/' + safeKey(referrer1) + '/referredBy').get();
+          if(ref1Snap.exists()) {
+            const referrer2 = ref1Snap.val();
+            await db.ref('users/' + safeKey(referrer2) + '/referrals/' + safeKey(currentUsername)).set({
+              username: currentUsername,
+              invested: newStake,
+              level: 2,
+              investmentDate: getDateKey(new Date())
+            });
+            
+            // Update L3
+            const ref2Snap = await db.ref('users/' + safeKey(referrer2) + '/referredBy').get();
+            if(ref2Snap.exists()) {
+              const referrer3 = ref2Snap.val();
+              await db.ref('users/' + safeKey(referrer3) + '/referrals/' + safeKey(currentUsername)).set({
+                username: currentUsername,
+                invested: newStake,
+                level: 3,
+                investmentDate: getDateKey(new Date())
+              });
+            }
+          }
         } catch(e) { console.error('Referral update error:', e); }
       }
       
-      // Credit referral bonuses to uplines
+      // Credit referral bonuses to uplines - SIMPLIFIED AND FIXED
       if(currentUser.referredBy) {
         const referrer1 = currentUser.referredBy;
         const l1Bonus = Math.floor(amount * (settingsData.refL1 / 100));
         
+        // L1 Bonus
         if(l1Bonus > 0) {
           try {
             const l1Snap = await db.ref('users/' + safeKey(referrer1)).get();
@@ -1724,75 +1750,69 @@ async function doDeposit() {
                 [`transactions/tx_referral_l1_${Date.now()}`]: {
                   type: 'Referral',
                   amount: l1Bonus,
-                  note: `Level 1 referral bonus from ${currentUsername} deposit`,
+                  note: `Level 1 referral bonus from ${currentUsername} deposit (${fmt(amount)})`,
                   date: dateStr(),
                   status: 'successful'
                 }
               };
               await db.ref('users/' + safeKey(referrer1)).update(l1Updates);
-            }
-          } catch(e) { console.error('L1 referral error:', e); }
-        }
-        
-        // Get L2 upline
-        try {
-          const ref1Snap = await db.ref('users/' + safeKey(referrer1) + '/referredBy').get();
-          if(ref1Snap.exists()) {
-            const referrer2 = ref1Snap.val();
-            const l2Bonus = Math.floor(amount * (settingsData.refL2 / 100));
-            
-            if(l2Bonus > 0) {
-              try {
-                const l2Snap = await db.ref('users/' + safeKey(referrer2)).get();
-                if(l2Snap.exists()) {
-                  const l2User = l2Snap.val();
-                  const l2NewBalance = (l2User.balance || 0) + l2Bonus;
-                  const l2Updates = {
-                    balance: l2NewBalance,
-                    [`transactions/tx_referral_l2_${Date.now()}`]: {
-                      type: 'Referral',
-                      amount: l2Bonus,
-                      note: `Level 2 referral bonus from ${currentUsername} deposit`,
-                      date: dateStr(),
-                      status: 'successful'
-                    }
-                  };
-                  await db.ref('users/' + safeKey(referrer2)).update(l2Updates);
-                }
-              } catch(e) { console.error('L2 referral error:', e); }
-            }
-            
-            // Get L3 upline
-            try {
-              const ref2Snap = await db.ref('users/' + safeKey(referrer2) + '/referredBy').get();
-              if(ref2Snap.exists()) {
-                const referrer3 = ref2Snap.val();
-                const l3Bonus = Math.floor(amount * (settingsData.refL3 / 100));
+              
+              // L2 Bonus - Get from L1's referredBy
+              if(l1User.referredBy) {
+                const referrer2 = l1User.referredBy;
+                const l2Bonus = Math.floor(amount * (settingsData.refL2 / 100));
                 
-                if(l3Bonus > 0) {
+                if(l2Bonus > 0) {
                   try {
-                    const l3Snap = await db.ref('users/' + safeKey(referrer3)).get();
-                    if(l3Snap.exists()) {
-                      const l3User = l3Snap.val();
-                      const l3NewBalance = (l3User.balance || 0) + l3Bonus;
-                      const l3Updates = {
-                        balance: l3NewBalance,
-                        [`transactions/tx_referral_l3_${Date.now()}`]: {
+                    const l2Snap = await db.ref('users/' + safeKey(referrer2)).get();
+                    if(l2Snap.exists()) {
+                      const l2User = l2Snap.val();
+                      const l2NewBalance = (l2User.balance || 0) + l2Bonus;
+                      const l2Updates = {
+                        balance: l2NewBalance,
+                        [`transactions/tx_referral_l2_${Date.now()}`]: {
                           type: 'Referral',
-                          amount: l3Bonus,
-                          note: `Level 3 referral bonus from ${currentUsername} deposit`,
+                          amount: l2Bonus,
+                          note: `Level 2 referral bonus from ${currentUsername} deposit (${fmt(amount)})`,
                           date: dateStr(),
                           status: 'successful'
                         }
                       };
-                      await db.ref('users/' + safeKey(referrer3)).update(l3Updates);
+                      await db.ref('users/' + safeKey(referrer2)).update(l2Updates);
+                      
+                      // L3 Bonus - Get from L2's referredBy
+                      if(l2User.referredBy) {
+                        const referrer3 = l2User.referredBy;
+                        const l3Bonus = Math.floor(amount * (settingsData.refL3 / 100));
+                        
+                        if(l3Bonus > 0) {
+                          try {
+                            const l3Snap = await db.ref('users/' + safeKey(referrer3)).get();
+                            if(l3Snap.exists()) {
+                              const l3User = l3Snap.val();
+                              const l3NewBalance = (l3User.balance || 0) + l3Bonus;
+                              const l3Updates = {
+                                balance: l3NewBalance,
+                                [`transactions/tx_referral_l3_${Date.now()}`]: {
+                                  type: 'Referral',
+                                  amount: l3Bonus,
+                                  note: `Level 3 referral bonus from ${currentUsername} deposit (${fmt(amount)})`,
+                                  date: dateStr(),
+                                  status: 'successful'
+                                }
+                              };
+                              await db.ref('users/' + safeKey(referrer3)).update(l3Updates);
+                            }
+                          } catch(e) { console.error('L3 referral error:', e); }
+                        }
+                      }
                     }
-                  } catch(e) { console.error('L3 referral error:', e); }
+                  } catch(e) { console.error('L2 referral error:', e); }
                 }
               }
-            } catch(e) { console.error('L3 lookup error:', e); }
-          }
-        } catch(e) { console.error('L2 lookup error:', e); }
+            }
+          } catch(e) { console.error('L1 referral error:', e); }
+        }
       }
       
       // Update local currentUser object and refresh UI
