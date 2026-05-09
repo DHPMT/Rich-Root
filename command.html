@@ -480,7 +480,7 @@ tbody td{padding:13px 16px;font-size:13px;vertical-align:middle;}
       <div class="danger-zone">
         <div class="danger-title">⚠️ Danger Zone</div>
         <div class="danger-sub">Permanently delete platform data. These actions cannot be undone.</div>
-        <div style="display:flex;gap:12px;flex-wrap:wrap;"><button class="btn btn-danger" onclick="deleteAllUsers()">🗑️ Delete All Users</button><button class="btn btn-danger" style="background:var(--warn);" onclick="deleteAllData()">💥 Delete ALL Data</button></div>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;"><button class="btn btn-danger" onclick="deleteAllUsers()">🗑️ Delete All Users</button><button class="btn btn-danger" style="background:var(--warn);" onclick="deleteAllTransactionHistories()">📋 Delete All Transactions</button><button class="btn btn-danger" style="background:var(--warn);" onclick="deleteAllData()">💥 Delete ALL Data</button></div>
       </div>
     </div>
 
@@ -716,40 +716,69 @@ function confirmAction(title, text){ return Swal.fire({title, text, icon:'warnin
 // ============================================================
 
 async function cleanupExpiredAdminTransactions() {
-  if (!allUsers || Object.keys(allUsers).length === 0) return;
-  
   const now = new Date();
-  const EXPIRY_TIME = 18 * 60 * 60 * 1000; // 18 hours in milliseconds
+  const EXPIRY_TIME = 16 * 60 * 60 * 1000; // 16 hours in milliseconds
   
-  Object.keys(allUsers).forEach(userKey => {
-    const user = allUsers[userKey];
-    if (!user.transactions) return;
+  // Clean user transactions
+  if (allUsers && Object.keys(allUsers).length > 0) {
+    Object.keys(allUsers).forEach(userKey => {
+      const user = allUsers[userKey];
+      if (!user.transactions) return;
+      
+      const txsToDelete = [];
+      
+      Object.keys(user.transactions).forEach(txKey => {
+        const tx = user.transactions[txKey];
+        if (!tx.date) return;
+        
+        // Parse transaction date
+        const txDate = new Date(tx.date);
+        const ageMs = now - txDate;
+        
+        // Delete if older than 16 hours AND not pending withdrawal
+        if (ageMs > EXPIRY_TIME && tx.status !== 'pending') {
+          txsToDelete.push(txKey);
+        }
+      });
+      
+      // Delete expired transactions
+      if (txsToDelete.length > 0) {
+        const updates = {};
+        txsToDelete.forEach(txKey => {
+          updates[`users/${userKey}/transactions/${txKey}`] = null;
+        });
+        db.ref().update(updates);
+      }
+    });
+  }
+  
+  // Clean admin transactions
+  if (allAdminTransactions && Object.keys(allAdminTransactions).length > 0) {
+    const adminTxsToDelete = [];
     
-    const txsToDelete = [];
-    
-    Object.keys(user.transactions).forEach(txKey => {
-      const tx = user.transactions[txKey];
-      if (!tx.date) return;
+    Object.keys(allAdminTransactions).forEach(adminTxKey => {
+      const adminTx = allAdminTransactions[adminTxKey];
+      if (!adminTx.date) return;
       
       // Parse transaction date
-      const txDate = new Date(tx.date);
+      const txDate = new Date(adminTx.date);
       const ageMs = now - txDate;
       
-      // Delete if older than 18 hours AND not pending withdrawal
-      if (ageMs > EXPIRY_TIME && tx.status !== 'pending') {
-        txsToDelete.push(txKey);
+      // Delete if older than 16 hours AND not pending
+      if (ageMs > EXPIRY_TIME && adminTx.status !== 'pending') {
+        adminTxsToDelete.push(adminTxKey);
       }
     });
     
-    // Delete expired transactions
-    if (txsToDelete.length > 0) {
+    // Delete expired admin transactions
+    if (adminTxsToDelete.length > 0) {
       const updates = {};
-      txsToDelete.forEach(txKey => {
-        updates[`users/${userKey}/transactions/${txKey}`] = null;
+      adminTxsToDelete.forEach(adminTxKey => {
+        updates[`adminTransactions/${adminTxKey}`] = null;
       });
       db.ref().update(updates);
     }
-  });
+  }
 }
 
 function renderDashboard(){
@@ -965,6 +994,48 @@ function rejectWithdrawal(reqKey, username, amount, txKey){
 }
 
 function deleteAllData(){ confirmAction('💥 DELETE ALL DATA?', 'This will wipe everything! This cannot be undone. Are you 100% sure?').then(confirmed=>{ if(confirmed){ db.ref('users').remove(); db.ref('pendingWithdrawals').remove(); db.ref('admins').remove(); toast('💥 All data deleted','#f87171'); } }); }
+
+async function deleteAllTransactionHistories(){
+  confirmAction('📋 Delete ALL Transaction Histories?', 'This will permanently delete all transaction records from all users and admin logs.\n\nUser balances, investments, and account data will NOT be affected.\n\nThis action cannot be undone. Are you sure?').then(confirmed=>{
+    if(!confirmed) return;
+    confirmAction('⚠️ FINAL CONFIRMATION', 'Are you 100% absolutely sure? All transaction histories will be deleted from Firebase.\n\nThis will free up Firebase space but cannot be reversed.').then(finalConfirmed=>{
+      if(!finalConfirmed) return;
+      deleteTransactionsProcess();
+    });
+  });
+}
+
+async function deleteTransactionsProcess(){
+  try {
+    const updates = {};
+    let deletedCount = 0;
+
+    // Delete all user transactions
+    const usersSnapshot = await db.ref('users').once('value');
+    const users = usersSnapshot.val() || {};
+    
+    Object.keys(users).forEach(username => {
+      updates['users/' + username + '/transactions'] = null;
+    });
+    deletedCount += Object.keys(users).length;
+
+    // Delete all admin transactions
+    updates['adminTransactions'] = null;
+
+    // Execute the deletion
+    await db.ref().update(updates);
+    
+    toast('✅ All transaction histories deleted! Freed up Firebase space.', '#10b981');
+    
+    // Refresh the transactions table if visible
+    if(document.getElementById('tx-table-body')) {
+      renderTransactionsTable();
+    }
+  } catch(error) {
+    console.error('Error deleting transactions:', error);
+    toast('❌ Error deleting transactions: ' + error.message, '#f87171');
+  }
+}
 
 function searchDebitUser(){ const q=document.getElementById('debit-search').value.trim().toLowerCase(); const infoBox=document.getElementById('debit-user-info'); const notFound=document.getElementById('debit-not-found'); debitTargetUser=null; infoBox.style.display='none'; notFound.style.display='none'; document.getElementById('debit-preview').style.display='none'; if(!q) return; const found=Object.values(allUsers).find(u=>(u.username||'').toLowerCase()===q); if(found){ debitTargetUser=found; document.getElementById('debit-user-name').textContent=found.username; document.getElementById('debit-user-phone').textContent=found.phone||'—'; const bal=found.balance||0; const balEl=document.getElementById('debit-user-balance'); balEl.textContent=fmt(bal); balEl.style.color=bal<0?'var(--warn)':'var(--accent3)'; infoBox.style.display='block'; } else { notFound.style.display='block'; } }
 function updateDebitPreview(){ const amt=parseInt(document.getElementById('debit-amount').value)||0; const prev=document.getElementById('debit-preview'); if(!debitTargetUser||amt<=0){ prev.style.display='none'; return; } const newBal=(debitTargetUser.balance||0)-amt; prev.style.display='block'; prev.innerHTML='Balance: '+fmt(debitTargetUser.balance||0)+' → After debit: <strong>'+fmt(newBal)+'</strong>'; prev.style.color=newBal<0?'var(--warn)':'var(--muted)'; }
