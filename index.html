@@ -310,8 +310,9 @@ input[type="password"]{padding-right:46px;}
 .ref-list-table thead th{padding:14px 12px;font-size:11px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;color:#fff;text-align:left;}
 .ref-list-table tbody tr{border-bottom:1px solid var(--border);}
 .ref-list-table tbody tr:last-child{border-bottom:none;}
-.ref-list-table tbody td{padding:12px;font-size:13px;color:var(--text);}
+.ref-list-table tbody td{padding:12px;font-size:13px;color:var(--text);word-break:break-word;}
 .ref-list-table .mono{font-family:'JetBrains Mono',monospace;}
+.ref-table-wrapper{width:100%;overflow-x:auto;margin-top:20px;border-radius:8px;border:1px solid var(--border);}
 .section-title{font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:10px;}
 
 /* WA Button */
@@ -1011,7 +1012,11 @@ function renderTeam(){
   
   const refs=currentUser.referrals?Object.values(currentUser.referrals):[];
   const wrap=document.getElementById('ref-list-wrap');
-  if(!refs.length){ wrap.innerHTML='<div class="empty-state" style="padding:30px 20px"><div class="empty-icon">🤝</div><div class="empty-title">No Referrals Yet</div><div class="empty-text">Share your referral link to grow your team.</div></div>'; return; }
+  if(!refs.length){ 
+    wrap.innerHTML='<div class="empty-state" style="padding:30px 20px"><div class="empty-icon">🤝</div><div class="empty-title">No Referrals Yet</div><div class="empty-text">Share your referral link to grow your team.</div></div>'; 
+    return; 
+  }
+  
   const l1Refs = refs.filter(r => r.level === 1);
   const l2Refs = refs.filter(r => r.level === 2);
   const l3Refs = refs.filter(r => r.level === 3);
@@ -1020,31 +1025,48 @@ function renderTeam(){
   const l2Total = l2Refs.reduce((sum, r) => sum + (r.invested || 0), 0);
   const l3Total = l3Refs.reduce((sum, r) => sum + (r.invested || 0), 0);
   
-  wrap.innerHTML = '<div class="ref-tabs-section">';
-  wrap.innerHTML += '<div class="ref-tabs">';
-  wrap.innerHTML += '<button class="ref-tab active" onclick="filterRefLevel(1)">Level 1 (' + l1Refs.length + ') - ' + fmt(l1Total) + '</button>';
-  wrap.innerHTML += '<button class="ref-tab" onclick="filterRefLevel(2)">Level 2 (' + l2Refs.length + ') - ' + fmt(l2Total) + '</button>';
-  wrap.innerHTML += '<button class="ref-tab" onclick="filterRefLevel(3)">Level 3 (' + l3Refs.length + ') - ' + fmt(l3Total) + '</button>';
-  wrap.innerHTML += '</div>';
-  
   const activeLevel = window.refFilterLevel || 1;
   let filteredRefs = [];
   if(activeLevel === 1) filteredRefs = l1Refs;
   else if(activeLevel === 2) filteredRefs = l2Refs;
   else if(activeLevel === 3) filteredRefs = l3Refs;
   
+  // Build complete HTML at once (not with +=)
+  let html = '<div class="ref-tabs-section">';
+  html += '<div class="ref-tabs">';
+  html += '<button class="ref-tab ' + (activeLevel === 1 ? 'active' : '') + '" onclick="filterRefLevel(1)">Level 1 (' + l1Refs.length + ') - ' + fmt(l1Total) + '</button>';
+  html += '<button class="ref-tab ' + (activeLevel === 2 ? 'active' : '') + '" onclick="filterRefLevel(2)">Level 2 (' + l2Refs.length + ') - ' + fmt(l2Total) + '</button>';
+  html += '<button class="ref-tab ' + (activeLevel === 3 ? 'active' : '') + '" onclick="filterRefLevel(3)">Level 3 (' + l3Refs.length + ') - ' + fmt(l3Total) + '</button>';
+  html += '</div>';
+  
   if (!filteredRefs.length) {
-    wrap.innerHTML += '<div class="empty-state" style="padding:30px 20px"><div class="empty-icon">🤝</div><div class="empty-title">No Level ' + activeLevel + ' Referrals</div><div class="empty-text">You don\'t have any Level ' + activeLevel + ' referrals yet.</div></div>';
+    html += '<div class="empty-state" style="padding:30px 20px"><div class="empty-icon">🤝</div><div class="empty-title">No Level ' + activeLevel + ' Referrals</div><div class="empty-text">You don\'t have any Level ' + activeLevel + ' referrals yet.</div></div>';
   } else {
-    wrap.innerHTML += '<table class="ref-list-table"><thead><tr><th>#</th><th>Username</th><th>Investment</th><th>Status</th></tr></thead><tbody>';
-    wrap.innerHTML += filteredRefs.map((r, i) => {
+    html += '<div class="ref-table-wrapper">';
+    html += '<table class="ref-list-table">';
+    html += '<thead><tr><th>#</th><th>Username</th><th>Investment</th><th>Status</th></tr></thead>';
+    html += '<tbody>';
+    
+    filteredRefs.forEach((r, i) => {
       const isActive = (r.invested || 0) > 0;
       const statusBadge = isActive ? '✅ Active' : '⚠️ Inactive';
-      return `<tr><td class="mono">${i + 1}</td><td>${r.username}</td><td class="mono" style="color:var(--gold);font-weight:700;">${fmt(r.invested || 0)}</td><td>${statusBadge}</td></tr>`;
-    }).join('');
-    wrap.innerHTML += '</tbody></table>';
+      html += '<tr>';
+      html += '<td class="mono">' + (i + 1) + '</td>';
+      html += '<td>' + (r.username || '—') + '</td>';
+      html += '<td class="mono" style="color:var(--gold);font-weight:700;">' + fmt(r.invested || 0) + '</td>';
+      html += '<td>' + statusBadge + '</td>';
+      html += '</tr>';
+    });
+    
+    html += '</tbody>';
+    html += '</table>';
+    html += '</div>';
   }
-  wrap.innerHTML += '</div>';
+  
+  html += '</div>';
+  
+  // Set all HTML at once
+  wrap.innerHTML = html;
 }
 
 function startUserListener(username){
