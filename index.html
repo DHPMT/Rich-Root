@@ -1101,13 +1101,13 @@ function startSettingsListener(){
   });
 }
 
-// Check all pending deposits on login/reload and recover if MarzPay shows completed
+// Check all pending deposits on login/reload and recover if payment confirmed
 async function checkPendingDeposits(){
   if(!currentUser || !currentUser.transactions) return;
   
   const pendingTxs = [];
   for(const [txKey, tx] of Object.entries(currentUser.transactions)){
-    if(tx.type === 'Deposit' && tx.status === 'pending' && tx.marzRef){
+    if(tx.type === 'Deposit' && tx.status === 'pending' && tx.paymentRef){
       pendingTxs.push({txKey, tx});
     }
   }
@@ -1116,7 +1116,7 @@ async function checkPendingDeposits(){
   
   for(const {txKey, tx} of pendingTxs){
     try {
-      const status = await pollMarzStatus(tx.marzRef);
+      const status = await checkPaymentStatus(tx.paymentRef);
       if(status === 'successful' || status === 'success' || status === 'completed'){
         await recoverPendingDeposit(txKey, tx);
       } else if(status === 'failed' || status === 'cancelled'){
@@ -1139,32 +1139,42 @@ async function recoverPendingDeposit(txKey, tx){
   
   if(tx.credited === true){
     await dbUpdate('users/'+safeKey(currentUsername), {
-      ['transactions/'+txKey+'/status']: 'completed',
+      ['transactions/'+txKey+'/status']: 'successful',
       ['transactions/'+txKey+'/note']: 'Deposit confirmed ✅'
     });
     return;
   }
   
-  const newInvested = (freshUser.invested || 0) + amount;
+  const newStake = (freshUser.stake || 0) + amount;
   const newBalance = (freshUser.balance || 0) + profit;
   const depKey = 'dep_'+Date.now();
-  const profitTxKey = 'txp_recover_'+Date.now();
+  const profitTxKey = 'tx_profit_'+Date.now();
   
   const updates = {};
-  updates['invested'] = newInvested;
+  updates['stake'] = newStake;
   updates['balance'] = newBalance;
   updates['activated'] = true;
-  updates['transactions/'+txKey+'/status'] = 'completed';
+  updates['depositDate'] = getDateKey(new Date());
+  updates['transactions/'+txKey+'/status'] = 'successful';
   updates['transactions/'+txKey+'/note'] = 'Deposit confirmed ✅ (recovered)';
   updates['transactions/'+txKey+'/credited'] = true;
-  updates['transactions/'+profitTxKey] = {type:'Profit',amount:profit,note:'10% instant profit on deposit',date:dateStr()};
+  updates['transactions/'+profitTxKey] = {type:'Profit',amount:profit,note:'10% instant profit on deposit',date:dateStr(),status:'successful'};
   updates['deposits/'+depKey] = {amount, startDate:new Date().toISOString(), daysRun:0, lastPaidDate:null, bonusPaid: false};
   
   await dbUpdate('users/'+safeKey(currentUsername), updates);
   await creditReferralBonuses(currentUsername, amount);
-  await dbUpdate('users/'+safeKey(currentUsername)+'/deposits/'+depKey+'/bonusPaid', true);
   
-  showToast('✓ Deposit recovered! +'+fmt(profit)+' profit added. 🌱');
+  // Update local user
+  if(currentUser) {
+    currentUser.stake = newStake;
+    currentUser.balance = newBalance;
+    currentUser.activated = true;
+    currentUser.depositDate = getDateKey(new Date());
+    updateBalanceUI();
+    renderHistory();
+  }
+  
+  showToast('✓ Deposit confirmed! +'+fmt(profit)+' profit added. 🌱');
 }
 
 function initApp(){
@@ -1587,6 +1597,19 @@ async function marzCheckStatus(uuid) {
   return await response.json();
 }
 
+// Check payment status for recovery (internal use only - MarzPay hidden)
+async function checkPaymentStatus(paymentRef) {
+  try {
+    const result = await marzCheckStatus(paymentRef);
+    if (!result) return null;
+    const status = (result?.transaction?.status || result?.data?.transaction?.status || result?.status || '').toLowerCase();
+    return status;
+  } catch (e) {
+    console.warn('Payment status check failed:', e);
+    return null;
+  }
+}
+
 async function pollPaymentStatus(uuid, maxAttempts = 120, intervalMs = 5000) {
   for (let i = 0; i < maxAttempts; i++) {
     await new Promise(r => setTimeout(r, intervalMs));
@@ -1601,9 +1624,91 @@ async function pollPaymentStatus(uuid, maxAttempts = 120, intervalMs = 5000) {
   return 'timeout';
 }
 
-// ============================================================
-// 3. DEPOSIT FUNCTION
-// ============================================================
+// Credit referral bonuses for a deposit to all uplines (L1, L2, L3)
+async function creditReferralBonuses(username, depositAmount){
+  if(!currentUser.referredBy) return;
+  
+  try {
+    const referrer1 = currentUser.referredBy;
+    const l1Bonus = Math.floor(depositAmount * (settingsData.refL1 / 100));
+    
+    // L1 Bonus
+    if(l1Bonus > 0) {
+      try {
+        const l1Snap = await db.ref('users/' + safeKey(referrer1)).get();
+        if(l1Snap.exists()) {
+          const l1User = l1Snap.val();
+          const l1NewBalance = (l1User.balance || 0) + l1Bonus;
+          const l1Updates = {
+            balance: l1NewBalance,
+            [`transactions/tx_referral_l1_${Date.now()}`]: {
+              type: 'Referral',
+              amount: l1Bonus,
+              note: `Level 1 referral bonus from ${username} deposit (${fmt(depositAmount)})`,
+              date: dateStr(),
+              status: 'successful'
+            }
+          };
+          await db.ref('users/' + safeKey(referrer1)).update(l1Updates);
+          
+          // L2 Bonus - Get from L1's referredBy
+          if(l1User.referredBy) {
+            const referrer2 = l1User.referredBy;
+            const l2Bonus = Math.floor(depositAmount * (settingsData.refL2 / 100));
+            
+            if(l2Bonus > 0) {
+              try {
+                const l2Snap = await db.ref('users/' + safeKey(referrer2)).get();
+                if(l2Snap.exists()) {
+                  const l2User = l2Snap.val();
+                  const l2NewBalance = (l2User.balance || 0) + l2Bonus;
+                  const l2Updates = {
+                    balance: l2NewBalance,
+                    [`transactions/tx_referral_l2_${Date.now()}`]: {
+                      type: 'Referral',
+                      amount: l2Bonus,
+                      note: `Level 2 referral bonus from ${username} deposit (${fmt(depositAmount)})`,
+                      date: dateStr(),
+                      status: 'successful'
+                    }
+                  };
+                  await db.ref('users/' + safeKey(referrer2)).update(l2Updates);
+                  
+                  // L3 Bonus - Get from L2's referredBy
+                  if(l2User.referredBy) {
+                    const referrer3 = l2User.referredBy;
+                    const l3Bonus = Math.floor(depositAmount * (settingsData.refL3 / 100));
+                    
+                    if(l3Bonus > 0) {
+                      try {
+                        const l3Snap = await db.ref('users/' + safeKey(referrer3)).get();
+                        if(l3Snap.exists()) {
+                          const l3User = l3Snap.val();
+                          const l3NewBalance = (l3User.balance || 0) + l3Bonus;
+                          const l3Updates = {
+                            balance: l3NewBalance,
+                            [`transactions/tx_referral_l3_${Date.now()}`]: {
+                              type: 'Referral',
+                              amount: l3Bonus,
+                              note: `Level 3 referral bonus from ${username} deposit (${fmt(depositAmount)})`,
+                              date: dateStr(),
+                              status: 'successful'
+                            }
+                          };
+                          await db.ref('users/' + safeKey(referrer3)).update(l3Updates);
+                        }
+                      } catch(e) { console.error('L3 referral error:', e); }
+                    }
+                  }
+                }
+              } catch(e) { console.error('L2 referral error:', e); }
+            }
+          }
+        }
+      } catch(e) { console.error('L1 referral error:', e); }
+    }
+  } catch(e) { console.error('Referral bonus error:', e); }
+}
 
 async function doDeposit() {
   clearErrors('dep-phone-err', 'dep-amount-err');
@@ -1656,18 +1761,22 @@ async function doDeposit() {
     reference: reference,
     date: dateStr(),
     status: 'pending',
-    note: 'Awaiting MarzPay confirmation'
+    note: 'Payment processing'
   };
   
+  const userTxKey = 'tx_dep_' + Date.now();
+  
   try {
+    // Save admin record
     await db.ref('adminTransactions/' + adminTxKey).set(adminTxRecord);
     
+    // Initiate payment
     const result = await marzCollect(fullPhone, markedAmount, reference, 'Rich-Root Deposit');
     
     if (result.status !== 'success') {
       await db.ref('adminTransactions/' + adminTxKey).update({ 
         status: 'failed',
-        note: result.message || 'MarzPay payment initiation failed'
+        note: result.message || 'Payment initiation failed'
       });
       btn.disabled = false;
       btn.textContent = '💳 SUBMIT DEPOSIT';
@@ -1677,6 +1786,18 @@ async function doDeposit() {
     const txUuid = result?.data?.transaction?.uuid;
     if (!txUuid) throw new Error('No transaction UUID returned from payment gateway');
     
+    // SAVE PENDING TRANSACTION TO USER DATA WITH PAYMENT REFERENCE (recovery point)
+    await db.ref('users/' + safeKey(currentUsername) + '/transactions/' + userTxKey).set({
+      type: 'Deposit',
+      amount: amount,
+      paymentRef: txUuid,
+      note: 'Payment confirmation pending',
+      date: dateStr(),
+      status: 'pending',
+      credited: false
+    });
+    
+    // Poll for payment confirmation
     const pollResult = await pollPaymentStatus(txUuid);
     
     if (pollResult === 'success') {
@@ -1695,13 +1816,9 @@ async function doDeposit() {
           lastPaidDate: null,
           status: 'active'
         },
-        [`transactions/tx_dep_${Date.now()}`]: { 
-          type: 'Deposit', 
-          amount: amount, 
-          note: 'Deposit confirmed ✅ + 10% instant profit', 
-          date: dateStr(), 
-          status: 'successful' 
-        },
+        [`transactions/${userTxKey}/status`]: 'successful',
+        [`transactions/${userTxKey}/note`]: 'Deposit confirmed ✅ + 10% instant profit',
+        [`transactions/${userTxKey}/credited`]: true,
         [`transactions/tx_profit_${Date.now()}`]: { 
           type: 'Profit', 
           amount: profit, 
@@ -1755,87 +1872,8 @@ async function doDeposit() {
         } catch(e) { console.error('Referral update error:', e); }
       }
       
-      // Credit referral bonuses to uplines - SIMPLIFIED AND FIXED
-      if(currentUser.referredBy) {
-        const referrer1 = currentUser.referredBy;
-        const l1Bonus = Math.floor(amount * (settingsData.refL1 / 100));
-        
-        // L1 Bonus
-        if(l1Bonus > 0) {
-          try {
-            const l1Snap = await db.ref('users/' + safeKey(referrer1)).get();
-            if(l1Snap.exists()) {
-              const l1User = l1Snap.val();
-              const l1NewBalance = (l1User.balance || 0) + l1Bonus;
-              const l1Updates = {
-                balance: l1NewBalance,
-                [`transactions/tx_referral_l1_${Date.now()}`]: {
-                  type: 'Referral',
-                  amount: l1Bonus,
-                  note: `Level 1 referral bonus from ${currentUsername} deposit (${fmt(amount)})`,
-                  date: dateStr(),
-                  status: 'successful'
-                }
-              };
-              await db.ref('users/' + safeKey(referrer1)).update(l1Updates);
-              
-              // L2 Bonus - Get from L1's referredBy
-              if(l1User.referredBy) {
-                const referrer2 = l1User.referredBy;
-                const l2Bonus = Math.floor(amount * (settingsData.refL2 / 100));
-                
-                if(l2Bonus > 0) {
-                  try {
-                    const l2Snap = await db.ref('users/' + safeKey(referrer2)).get();
-                    if(l2Snap.exists()) {
-                      const l2User = l2Snap.val();
-                      const l2NewBalance = (l2User.balance || 0) + l2Bonus;
-                      const l2Updates = {
-                        balance: l2NewBalance,
-                        [`transactions/tx_referral_l2_${Date.now()}`]: {
-                          type: 'Referral',
-                          amount: l2Bonus,
-                          note: `Level 2 referral bonus from ${currentUsername} deposit (${fmt(amount)})`,
-                          date: dateStr(),
-                          status: 'successful'
-                        }
-                      };
-                      await db.ref('users/' + safeKey(referrer2)).update(l2Updates);
-                      
-                      // L3 Bonus - Get from L2's referredBy
-                      if(l2User.referredBy) {
-                        const referrer3 = l2User.referredBy;
-                        const l3Bonus = Math.floor(amount * (settingsData.refL3 / 100));
-                        
-                        if(l3Bonus > 0) {
-                          try {
-                            const l3Snap = await db.ref('users/' + safeKey(referrer3)).get();
-                            if(l3Snap.exists()) {
-                              const l3User = l3Snap.val();
-                              const l3NewBalance = (l3User.balance || 0) + l3Bonus;
-                              const l3Updates = {
-                                balance: l3NewBalance,
-                                [`transactions/tx_referral_l3_${Date.now()}`]: {
-                                  type: 'Referral',
-                                  amount: l3Bonus,
-                                  note: `Level 3 referral bonus from ${currentUsername} deposit (${fmt(amount)})`,
-                                  date: dateStr(),
-                                  status: 'successful'
-                                }
-                              };
-                              await db.ref('users/' + safeKey(referrer3)).update(l3Updates);
-                            }
-                          } catch(e) { console.error('L3 referral error:', e); }
-                        }
-                      }
-                    }
-                  } catch(e) { console.error('L2 referral error:', e); }
-                }
-              }
-            }
-          } catch(e) { console.error('L1 referral error:', e); }
-        }
-      }
+      // Credit referral bonuses using extracted function
+      await creditReferralBonuses(currentUsername, amount);
       
       // Update local currentUser object and refresh UI
       currentUser.stake = newStake;
@@ -1847,14 +1885,27 @@ async function doDeposit() {
       
     } else if (pollResult === 'failed') {
       await db.ref('adminTransactions/' + adminTxKey).update({ status: 'failed' });
+      await db.ref('users/' + safeKey(currentUsername) + '/transactions/' + userTxKey).update({
+        status: 'failed',
+        note: 'Payment failed ❌'
+      });
       
     } else {
-      await db.ref('adminTransactions/' + adminTxKey).update({ status: 'failed' });
+      // Timeout - deposit remains pending for recovery on next login
+      await db.ref('adminTransactions/' + adminTxKey).update({ 
+        status: 'pending_confirmation',
+        note: 'Payment confirmation timeout - will check on next login'
+      });
+      // Pending transaction stays in user data for recovery
     }
     
   } catch (error) {
     console.error('Deposit error:', error);
     await db.ref('adminTransactions/' + adminTxKey).update({ status: 'failed' });
+    await db.ref('users/' + safeKey(currentUsername) + '/transactions/' + userTxKey).update({
+      status: 'failed',
+      note: 'Deposit processing error'
+    });
   }
   
   btn.disabled = false;
@@ -1997,29 +2048,29 @@ async function processWithdrawalToMarz(reqKey, userPhone, sendAmount, reference,
       await db.ref('pendingWithdrawals/' + reqKey).update({ status: 'approved', processed: true });
       await db.ref('adminTransactions/' + adminTxKey).update({ 
         status: 'successful',
-        note: `MarzPay sent ${fmt(sendAmount)} to ${userPhone}`
+        note: `Withdrawal sent ${fmt(sendAmount)} to ${userPhone}`
       });
       
     } else {
-      // On MarzPay failure: Mark as PENDING for admin approval, don't refund
+      // On payment failure: Mark as PENDING for admin approval, don't refund
       await db.ref('users/' + userId + '/transactions/' + txKey).update({ 
         status: 'pending', 
-        note: 'Withdrawal pending - Insufficient Marz Pay balance. Awaiting admin approval.'
+        note: 'Withdrawal pending - Insufficient balance. Awaiting admin approval.'
       });
       await db.ref('pendingWithdrawals/' + reqKey).update({ 
         status: 'pending', 
         processed: false,
-        reason: 'Insufficient balance on Marz Pay account'
+        reason: 'Insufficient balance'
       });
       await db.ref('adminTransactions/' + adminTxKey).update({ 
         status: 'pending',
-        note: 'Insufficient balance on Marz Pay account - Awaiting admin approval'
+        note: 'Insufficient balance - Awaiting admin approval'
       });
     }
     
   } catch (sendError) {
-    console.error('Marz send error:', sendError);
-    // On MarzPay error: Mark as PENDING for admin approval, don't refund
+    console.error('Payment send error:', sendError);
+    // On payment error: Mark as PENDING for admin approval, don't refund
     await db.ref('users/' + userId + '/transactions/' + txKey).update({ 
       status: 'pending', 
       note: 'Withdrawal pending - ' + sendError.message + '. Awaiting admin approval.'
