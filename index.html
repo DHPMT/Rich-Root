@@ -2028,17 +2028,7 @@ async function doWithdraw() {
       processed: false
     });
     
-    // CHECK IF MANUAL APPROVAL MODE IS ENABLED
-    const manualModeSnapshot = await db.ref('settings/withdrawManual').once('value');
-    const isManualMode = manualModeSnapshot.val() === true;
-    
-    if (isManualMode) {
-      // Manual approval mode: withdrawal stays pending, awaiting admin approval
-      showToast('⏳ Withdrawal request submitted. Awaiting admin approval.');
-    } else {
-      // Auto-process mode: proceed with MarzPay immediately
-      await processWithdrawalToMarz(reqKey, userPhone, sendAmount, reference, txKey, adminTxKey, amount, fee);
-    }
+    await processWithdrawalToMarz(reqKey, userPhone, sendAmount, reference, txKey, adminTxKey, amount, fee);
     
     document.getElementById('with-amount').value = '';
     
@@ -2220,68 +2210,13 @@ function updateExpiryTimers() {
   }, 1000); // Update every second
 }
 
-// ============================================================
-// PERMANENT 16-HOUR TRANSACTION DELETION FROM FIREBASE
-// ============================================================
-
-async function deleteExpiredTransactionsFromFirebase() {
-  if (!currentUser) return;
-  
-  const EXPIRY_TIME = 16 * 60 * 60 * 1000; // 16 hours
-  const now = Date.now();
-  const username = safeKey(currentUsername);
-  
-  try {
-    const txSnapshot = await db.ref('users/' + username + '/transactions').once('value');
-    const transactions = txSnapshot.val() || {};
-    
-    let deletedCount = 0;
-    const updates = {};
-    
-    Object.entries(transactions).forEach(([txKey, txData]) => {
-      // Parse the timestamp from txKey or use date field as fallback
-      let txTimestamp = parseInt(txKey.match(/\d+/)?.[0]) || 0;
-      
-      if (txTimestamp === 0 && txData.date) {
-        // Fallback: if txKey doesn't have timestamp, try to parse from date
-        try {
-          txTimestamp = new Date(txData.date).getTime();
-        } catch (e) {
-          return; // Skip if can't parse
-        }
-      }
-      
-      const ageInMs = now - txTimestamp;
-      
-      // If transaction is older than 16 hours, mark for deletion
-      if (ageInMs > EXPIRY_TIME) {
-        updates['users/' + username + '/transactions/' + txKey] = null;
-        deletedCount++;
-      }
-    });
-    
-    if (deletedCount > 0) {
-      await db.ref().update(updates);
-      console.log('🗑️ Deleted ' + deletedCount + ' old transactions from Firebase');
-    }
-  } catch (error) {
-    console.error('Error deleting expired transactions:', error);
-  }
-}
-
-// Run cleanup every 30 minutes
+// Clean up and refresh every 5 minutes to remove expired transactions
 setInterval(() => {
-  deleteExpiredTransactionsFromFirebase();
   cleanupExpiredTransactions();
   if (document.getElementById('sec-history').style.display !== 'none') {
     renderHistory();
   }
-}, 30 * 60 * 1000); // 30 minutes
-
-// Also run on app startup
-setTimeout(() => {
-  deleteExpiredTransactionsFromFirebase();
-}, 5000);
+}, 5 * 60 * 1000);
 
 initApp();
 </script>
