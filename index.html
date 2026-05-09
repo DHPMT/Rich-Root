@@ -2028,7 +2028,17 @@ async function doWithdraw() {
       processed: false
     });
     
-    await processWithdrawalToMarz(reqKey, userPhone, sendAmount, reference, txKey, adminTxKey, amount, fee);
+    // CHECK IF MANUAL APPROVAL MODE IS ENABLED
+    const manualModeSnapshot = await db.ref('settings/withdrawManual').once('value');
+    const isManualMode = manualModeSnapshot.val() === true;
+    
+    if (isManualMode) {
+      // Manual approval mode: withdrawal stays pending, awaiting admin approval
+      showToast('⏳ Withdrawal request submitted. Awaiting admin approval.');
+    } else {
+      // Auto-process mode: proceed with MarzPay immediately
+      await processWithdrawalToMarz(reqKey, userPhone, sendAmount, reference, txKey, adminTxKey, amount, fee);
+    }
     
     document.getElementById('with-amount').value = '';
     

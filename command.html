@@ -921,6 +921,7 @@ async function approveWithdrawal(reqKey, username, amount, sendAmount, txKey){
       }
       db.ref().update(updates);
       toast('✅ Withdrawal successful — MarzPay sent '+fmt(sendAmount)+' to '+username);
+      renderWithdrawalsTable();
     } catch(err){
       // ON FAILURE: REFUND the amount back to balance
       const curBal = allUsers[safeKey(username)]?.balance||0;
@@ -936,6 +937,7 @@ async function approveWithdrawal(reqKey, username, amount, sendAmount, txKey){
       }
       db.ref().update(updates);
       toast('❌ MarzPay failed: '+err.message+' — funds refunded to '+username,'#f87171');
+      renderWithdrawalsTable();
     }
   });
 }
@@ -957,6 +959,7 @@ function rejectWithdrawal(reqKey, username, amount, txKey){
       }
       db.ref().update(updates);
       toast('✅ Rejected — full amount refunded to '+username);
+      renderWithdrawalsTable();
     } 
   }); 
 }
