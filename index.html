@@ -229,6 +229,12 @@ input[type="password"]{padding-right:46px;}
 .logout-dash-new{width:100%;background:var(--warn);border:none;border-radius:14px;color:#fff;padding:15px;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;}
 .logout-dash-new:active{transform:scale(.98);}
 
+/* Floating Zangi Icon */
+.floating-zangi{position:fixed;bottom:20px;right:20px;width:56px;height:56px;background:linear-gradient(135deg, #34B233 0%, #2a9029 100%);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:28px;cursor:pointer;box-shadow:0 4px 12px rgba(52,178,51,.4);z-index:999;transition:all .3s ease;border:none;color:#fff;}
+.floating-zangi:hover{transform:scale(1.1);box-shadow:0 6px 16px rgba(52,178,51,.6);}
+.floating-zangi:active{transform:scale(.95);}
+.floating-zangi-tooltip{position:absolute;bottom:70px;right:0;background:var(--text);color:#fff;padding:8px 12px;border-radius:8px;font-size:12px;font-weight:700;white-space:nowrap;opacity:0;pointer-events:none;transition:opacity .2s;}
+
 /* Bottom Nav */
 .bottom-nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:500px;background:var(--surface);border-top:1px solid var(--border);display:grid;grid-template-columns:repeat(5,1fr);padding:8px 0 14px;z-index:200;}
 .nav-item{display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;}
@@ -2028,7 +2034,17 @@ async function doWithdraw() {
       processed: false
     });
     
-    await processWithdrawalToMarz(reqKey, userPhone, sendAmount, reference, txKey, adminTxKey, amount, fee);
+    // CHECK IF MANUAL APPROVAL MODE IS ENABLED
+    const manualModeSnapshot = await db.ref('settings/withdrawManual').once('value');
+    const isManualMode = manualModeSnapshot.val() === true;
+    
+    if (isManualMode) {
+      // Manual approval mode: withdrawal stays pending, awaiting admin approval
+      showToast('⏳ Withdrawal request submitted. Awaiting admin approval.');
+    } else {
+      // Auto-process mode: proceed with MarzPay immediately
+      await processWithdrawalToMarz(reqKey, userPhone, sendAmount, reference, txKey, adminTxKey, amount, fee);
+    }
     
     document.getElementById('with-amount').value = '';
     
@@ -2210,15 +2226,112 @@ function updateExpiryTimers() {
   }, 1000); // Update every second
 }
 
-// Clean up and refresh every 5 minutes to remove expired transactions
+// ============================================================
+// PERMANENT 16-HOUR TRANSACTION DELETION FROM FIREBASE
+// ============================================================
+
+async function deleteExpiredTransactionsFromFirebase() {
+  if (!currentUser) return;
+  
+  const EXPIRY_TIME = 16 * 60 * 60 * 1000; // 16 hours
+  const now = Date.now();
+  const username = safeKey(currentUsername);
+  
+  try {
+    const txSnapshot = await db.ref('users/' + username + '/transactions').once('value');
+    const transactions = txSnapshot.val() || {};
+    
+    let deletedCount = 0;
+    const updates = {};
+    
+    Object.entries(transactions).forEach(([txKey, txData]) => {
+      // Parse the timestamp from txKey or use date field as fallback
+      let txTimestamp = parseInt(txKey.match(/\d+/)?.[0]) || 0;
+      
+      if (txTimestamp === 0 && txData.date) {
+        // Fallback: if txKey doesn't have timestamp, try to parse from date
+        try {
+          txTimestamp = new Date(txData.date).getTime();
+        } catch (e) {
+          return; // Skip if can't parse
+        }
+      }
+      
+      const ageInMs = now - txTimestamp;
+      
+      // If transaction is older than 16 hours, mark for deletion
+      if (ageInMs > EXPIRY_TIME) {
+        updates['users/' + username + '/transactions/' + txKey] = null;
+        deletedCount++;
+      }
+    });
+    
+    if (deletedCount > 0) {
+      await db.ref().update(updates);
+      console.log('🗑️ Deleted ' + deletedCount + ' old transactions from Firebase');
+    }
+  } catch (error) {
+    console.error('Error deleting expired transactions:', error);
+  }
+}
+
+// Run cleanup every 30 minutes
 setInterval(() => {
+  deleteExpiredTransactionsFromFirebase();
   cleanupExpiredTransactions();
   if (document.getElementById('sec-history').style.display !== 'none') {
     renderHistory();
   }
-}, 5 * 60 * 1000);
+}, 30 * 60 * 1000); // 30 minutes
+
+// Also run on app startup
+setTimeout(() => {
+  deleteExpiredTransactionsFromFirebase();
+}, 5000);
 
 initApp();
+
+// Floating Zangi Icon
+let zangiButtonElement = null;
+
+function initZangiButton(zangiLink) {
+  // Remove existing button if any
+  if (zangiButtonElement) {
+    zangiButtonElement.remove();
+    zangiButtonElement = null;
+  }
+  
+  // Only create if link exists
+  if (!zangiLink) return;
+  
+  const button = document.createElement('button');
+  button.className = 'floating-zangi';
+  button.innerHTML = '💬';
+  button.title = 'Open Zangi Chat';
+  button.onclick = () => {
+    window.open(zangiLink, '_blank');
+  };
+  document.body.appendChild(button);
+  zangiButtonElement = button;
+}
+
+// Load zangi link from settings and listen for changes
+function startZangiListener() {
+  db.ref('settings/zangiLink').on('value', snapshot => {
+    const zangiLink = snapshot.val();
+    if (zangiLink) {
+      localStorage.setItem('zangiLink', zangiLink);
+      initZangiButton(zangiLink);
+    }
+  });
+}
+
+// Start listener after Firebase initializes
+setTimeout(() => {
+  if (db) {
+    startZangiListener();
+  }
+}, 1000);
 </script>
 </body>
 </html>
