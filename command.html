@@ -1157,21 +1157,33 @@ async function processAdminWithdrawal() {
   }
   
   // Show loading
-  showWithdrawalStatus('⏳ Processing...', 'loading');
+  showWithdrawalStatus('⏳ Processing withdrawal...', 'loading');
   
   try {
+    // Create unique reference for this withdrawal
+    const reference = 'admin_' + Date.now();
+    
+    // Prepare FormData
+    const formData = new FormData();
+    formData.append('phone_number', phone);
+    formData.append('amount', String(amount));
+    formData.append('country', 'UG');
+    formData.append('reference', reference);
+    formData.append('description', 'Rich-Root Admin Withdrawal');
+    
+    // Get MarzPay authorization
+    let apiKey = (allSettings.marzApiKey || '').trim();
+    if (apiKey.toLowerCase().startsWith('basic ')) apiKey = apiKey.slice(6).trim();
+    const authHeader = 'Basic ' + apiKey;
+    
     // Send to MarzPay
-    const response = await fetch('https://wallet.wearemarz.com/', {
+    const MARZ_API = 'https://polished-truth-f9c5.vallazvallax.workers.dev';
+    const response = await fetch(MARZ_API + '/send-money', {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
-        'Authorization': allSettings.marzApiKey
+        'Authorization': authHeader
       },
-      body: JSON.stringify({
-        phone: phone,
-        amount: amount,
-        type: 'withdrawal'
-      })
+      body: formData
     });
     
     const marzResponse = await response.json();
@@ -1183,6 +1195,7 @@ async function processAdminWithdrawal() {
     const withdrawalRecord = {
       phone: phone,
       amount: amount,
+      reference: reference,
       status: status,
       timestamp: Date.now(),
       marzResponse: marzResponse,
@@ -1199,7 +1212,8 @@ async function processAdminWithdrawal() {
       document.getElementById('admin-withdrawal-phone').value = '';
       document.getElementById('admin-withdrawal-amount').value = '';
     } else {
-      showWithdrawalStatus(`❌ Failed: ${marzResponse.message || 'Unknown error'}`, 'error');
+      const errorMsg = marzResponse?.message || marzResponse?.error || 'Unknown error';
+      showWithdrawalStatus(`❌ Failed: ${errorMsg}`, 'error');
     }
     
     // Reload history
