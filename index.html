@@ -1208,7 +1208,7 @@ async function recoverPendingDeposit(txKey, tx){
   updates['transactions/'+txKey+'/note'] = 'Deposit confirmed ✅ (recovered)';
   updates['transactions/'+txKey+'/credited'] = true;
   updates['transactions/'+profitTxKey] = {type:'Profit',amount:profit,note:'10% instant profit on deposit',date:dateStr(),status:'successful'};
-  updates['deposits/'+depKey] = {amount, startDate:new Date().toISOString(), daysRun:0, lastPaidDate:null, bonusPaid: false};
+  updates['deposits/'+depKey] = {amount, startDate:new Date().toISOString(), daysRun:0, lastPaidDate:getDateKey(new Date()), bonusPaid: false};
   
   await dbUpdate('users/'+safeKey(currentUsername), updates);
   await creditReferralBonuses(currentUsername, amount);
@@ -1848,7 +1848,7 @@ async function doDeposit() {
         [`deposits/${depKey}`]: {
           amount: amount,
           startDate: new Date().toISOString(),
-          lastPaidDate: null,
+          lastPaidDate: getDateKey(new Date()),
           status: 'active'
         },
         [`transactions/${userTxKey}/status`]: 'successful',
@@ -2153,7 +2153,7 @@ function doReinvest(){
   updates['balance']=(currentUser.balance||0)-amount+profit;
   updates['invested']=newInvested;
   updates['activated']=true;
-  updates['deposits/'+depKey]={amount,startDate:new Date().toISOString(),daysRun:0,lastPaidDate:null, bonusPaid: true};
+  updates['deposits/'+depKey]={amount,startDate:new Date().toISOString(),daysRun:0,lastPaidDate:getDateKey(new Date()), bonusPaid: true};
   updates['transactions/'+tx1Key]={type:'Re-Invest',amount:-amount,note:'Moved from Available Balance to Invested',date:now};
   updates['transactions/'+tx2Key]={type:'Profit',amount:profit,note:'10% instant profit on re-invest (72 days)',date:now};
   dbUpdate('users/'+safeKey(currentUsername), updates);
