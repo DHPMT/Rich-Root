@@ -1177,17 +1177,19 @@ async function recoverPendingDeposit(txKey, tx){
   const newBalance = (freshUser.balance || 0) + profit;
   const depKey = 'dep_'+Date.now();
   const profitTxKey = 'tx_profit_'+Date.now();
+  const todayKey = getDateKey(new Date());
   
   const updates = {};
   updates['stake'] = newStake;
   updates['balance'] = newBalance;
+  updates['profitEarned'] = (freshUser.profitEarned || 0) + profit;
   updates['activated'] = true;
-  updates['depositDate'] = getDateKey(new Date());
+  updates['depositDate'] = todayKey;
   updates['transactions/'+txKey+'/status'] = 'successful';
   updates['transactions/'+txKey+'/note'] = 'Deposit confirmed ✅ (recovered)';
   updates['transactions/'+txKey+'/credited'] = true;
   updates['transactions/'+profitTxKey] = {type:'Profit',amount:profit,note:'10% instant profit on deposit',date:dateStr(),status:'successful'};
-  updates['deposits/'+depKey] = {amount, startDate:new Date().toISOString(), daysRun:0, lastPaidDate:null, bonusPaid: false};
+  updates['deposits/'+depKey] = {amount, startDate:new Date().toISOString(), lastPaidDate:todayKey, status:'active'};
   
   await dbUpdate('users/'+safeKey(currentUsername), updates);
   await creditReferralBonuses(currentUsername, amount);
@@ -1196,8 +1198,9 @@ async function recoverPendingDeposit(txKey, tx){
   if(currentUser) {
     currentUser.stake = newStake;
     currentUser.balance = newBalance;
+    currentUser.profitEarned = (currentUser.profitEarned || 0) + profit;
     currentUser.activated = true;
-    currentUser.depositDate = getDateKey(new Date());
+    currentUser.depositDate = todayKey;
     updateBalanceUI();
     renderHistory();
   }
@@ -1425,8 +1428,10 @@ function runDailyProfits(){
     // Skip if deposit was created after today (future date)
     if(depStartDate > today) return;
     
-    // CRITICAL: Check if deposit is still within 72-day earning period
+    // Calculate days elapsed since deposit started
     const daysElapsed = Math.floor((today - depStartDate) / (1000 * 60 * 60 * 24));
+    
+    // Check if deposit has reached 72 days
     if(daysElapsed >= 72) {
       // 72 days completed - mark as finished earning
       updates[`deposits/${depKey}/status`] = 'completed';
@@ -1436,64 +1441,33 @@ function runDailyProfits(){
     // Get the last date this deposit received profit
     const lastDepositPaidDate = dep.lastPaidDate || null;
     
-    // If already paid today, skip
+    // If already paid today, skip this deposit
     if(lastDepositPaidDate === todayKey) {
       return;
     }
     
-    // Calculate days to credit for THIS deposit
-    let daysToCredit = [];
-    
-    if(!lastDepositPaidDate) {
-      // First time - start from deposit date and credit ALL days up to today
-      let currentDate = new Date(depStartDate);
-      while(currentDate <= today) {
-        const dayCount = Math.floor((currentDate - depStartDate) / (1000 * 60 * 60 * 24));
-        if(dayCount < 72) {
-          daysToCredit.push(getDateKey(currentDate));
-        }
-        currentDate.setUTCDate(currentDate.getUTCDate() + 1);
-      }
-    } else {
-      // Not first time - start from day AFTER last paid date
-      let currentDate = new Date(lastDepositPaidDate);
-      currentDate.setUTCDate(currentDate.getUTCDate() + 1);
-      while(currentDate <= today) {
-        const dayCount = Math.floor((currentDate - depStartDate) / (1000 * 60 * 60 * 24));
-        if(dayCount < 72) {
-          daysToCredit.push(getDateKey(currentDate));
-        }
-        currentDate.setUTCDate(currentDate.getUTCDate() + 1);
-      }
+    // Eligible for today's profit payment
+    if(dep.amount && dep.amount > 0) {
+      const dailyProfit = Math.floor(dep.amount * 0.10);
+      totalProfit += dailyProfit;
+      hasNewProfits = true;
+      
+      // Create transaction for today's profit
+      const txId = 'tx_' + depKey + '_' + todayKey.replace(/-/g,'');
+      updates[`transactions/${txId}`] = {
+        type: 'Profit',
+        amount: dailyProfit,
+        note: `Daily 10% profit (Based on ${getCurrencySymbol()} ${fmt(dep.amount)})`,
+        date: dateStr(),
+        status: 'successful'
+      };
     }
-    
-    if(daysToCredit.length === 0) return;
-    
-    // Credit each day for this deposit
-    daysToCredit.forEach((dateKey) => {
-      // Calculate 10% profit on this deposit's amount
-      if(dep.amount && dep.amount > 0) {
-        const dailyProfit = Math.floor(dep.amount * 0.10);
-        totalProfit += dailyProfit;
-        hasNewProfits = true;
-        
-        // Create individual transaction for each day
-        const txId = 'tx_'+depKey+'_'+dateKey.replace(/-/g,'');
-        updates[`transactions/${txId}`] = {
-          type: 'Profit',
-          amount: dailyProfit,
-          note: `Daily 10% profit (Based on UGX ${fmt(dep.amount)})`,
-          date: dateKey + ' 00:00:00',
-          status: 'successful'
-        };
-      }
-    });
     
     // Update this deposit's lastPaidDate to today
     updates[`deposits/${depKey}/lastPaidDate`] = todayKey;
     
-    // If 72 days reached after this profit, mark as completed
-    if(daysElapsed + daysToCredit.length >= 72) {
+    // Check if this is the 72nd day - if so, mark as completed
+    if(daysElapsed + 1 >= 72) {
       updates[`deposits/${depKey}/status`] = 'completed';
     }
   });
@@ -1502,11 +1476,13 @@ function runDailyProfits(){
   
   // Apply all updates
   updates.balance = (currentUser.balance || 0) + totalProfit;
+  updates.profitEarned = (currentUser.profitEarned || 0) + totalProfit;
   
   dbUpdate('users/' + safeKey(currentUsername), updates);
   
   // Update local state
   currentUser.balance = (currentUser.balance || 0) + totalProfit;
+  currentUser.profitEarned = (currentUser.profitEarned || 0) + totalProfit;
   
   // Update each deposit's lastPaidDate in local state
   depositEntries.forEach(([depKey, dep]) => {
@@ -1520,6 +1496,7 @@ function runDailyProfits(){
   
   updateBalanceUI();
   renderHistory();
+  showToast('✓ Daily profits credited! +' + fmt(totalProfit), '#22c55e');
 }
 
 function doLogout(){
