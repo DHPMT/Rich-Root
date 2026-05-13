@@ -938,7 +938,7 @@ function updateBalanceUI(){
   const balance = currentUser.balance || 0;
   
   document.getElementById('stat-invested').textContent=fmt(invested);
-  document.getElementById('stat-balance').textContent=fmt(Math.max(0, balance));
+  document.getElementById('stat-balance').textContent=fmt(balance);
   const el=document.getElementById('reinvest-balance-display'); if(el)el.textContent=fmt(Math.max(0, balance));
 }
 
