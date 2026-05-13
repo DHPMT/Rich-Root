@@ -1810,16 +1810,18 @@ async function doDeposit() {
       const newStake = oldStake + amount;
       const newBalance = (currentUser.balance || 0) + profit;
       const depKey = 'dep_' + Date.now();
+      const todayKey = getDateKey(new Date());
       
       const updates = {
         stake: newStake,
         balance: newBalance,
+        profitEarned: (currentUser.profitEarned || 0) + profit,
         activated: true,
-        depositDate: getDateKey(new Date()),
+        depositDate: todayKey,
         [`deposits/${depKey}`]: {
           amount: amount,
           startDate: new Date().toISOString(),
-          lastPaidDate: null,
+          lastPaidDate: todayKey,
           status: 'active'
         },
         [`transactions/${userTxKey}/status`]: 'successful',
