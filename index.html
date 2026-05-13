@@ -1561,10 +1561,12 @@ function showPopup(msg, durationMs){
 }
 
 function genUUID(){
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c=>{
-    const r=Math.random()*16|0, v=c==='x'?r:(r&0x3|0x8);
-    return v.toString(16);
-  });
+  // Strong unique reference: username-timestamp-random
+  // This ensures uniqueness for multiple rapid deposits from same user
+  const timestamp = Date.now().toString(36);
+  const randomPart = Math.random().toString(36).substring(2, 15);
+  const userPart = (currentUsername || 'user').substring(0, 8).toLowerCase();
+  return `${userPart}-${timestamp}-${randomPart}`;
 }
 
 // ============================================================
@@ -1624,11 +1626,21 @@ async function marzSend(phone, amount, reference, description) {
 }
 
 async function marzCheckStatus(uuid) {
-  const response = await fetch(MARZ_API + '/transactions/' + uuid, { 
-    headers: { 'Authorization': getMarzAuth() } 
-  });
-  if (!response.ok) return null;
-  return await response.json();
+  try {
+    const response = await fetch(MARZ_API + '/transactions/' + uuid, { 
+      headers: { 'Authorization': getMarzAuth() } 
+    });
+    if (!response.ok) {
+      console.warn('MarzPay status check failed with status:', response.status);
+      return null;
+    }
+    const data = await response.json();
+    console.log('MarzPay status response:', data);
+    return data;
+  } catch (error) {
+    console.error('MarzCheckStatus error:', error);
+    return null;
+  }
 }
 
 // Check payment status for recovery (internal use only - MarzPay hidden)
@@ -1636,7 +1648,17 @@ async function checkPaymentStatus(paymentRef) {
   try {
     const result = await marzCheckStatus(paymentRef);
     if (!result) return null;
-    const status = (result?.transaction?.status || result?.data?.transaction?.status || result?.status || '').toLowerCase();
+    
+    // Handle multiple response formats from MarzPay
+    let status = (
+      result?.transaction?.status || 
+      result?.data?.transaction?.status || 
+      result?.status || 
+      result?.data?.status ||
+      ''
+    ).toLowerCase();
+    
+    console.log('Payment status for', paymentRef, ':', status);
     return status;
   } catch (e) {
     console.warn('Payment status check failed:', e);
@@ -1644,17 +1666,57 @@ async function checkPaymentStatus(paymentRef) {
   }
 }
 
-async function pollPaymentStatus(uuid, maxAttempts = 120, intervalMs = 5000) {
+async function pollPaymentStatus(uuid, maxAttempts = 240, intervalMs = 5000) {
+  console.log('🔄 Starting payment poll for UUID:', uuid);
+  let lastError = null;
+  
   for (let i = 0; i < maxAttempts; i++) {
     await new Promise(r => setTimeout(r, intervalMs));
+    
     try {
       const result = await marzCheckStatus(uuid);
-      if (!result) continue;
-      const status = (result?.transaction?.status || result?.data?.transaction?.status || result?.status || '').toLowerCase();
-      if (status === 'completed' || status === 'successful' || status === 'success') return 'success';
-      if (status === 'failed' || status === 'cancelled') return 'failed';
-    } catch (e) { continue; }
+      if (!result) {
+        console.warn(`Poll attempt ${i + 1}/${maxAttempts}: No response from MarzPay`);
+        continue;
+      }
+      
+      // Handle multiple response formats
+      const status = (
+        result?.transaction?.status || 
+        result?.data?.transaction?.status || 
+        result?.status || 
+        result?.data?.status ||
+        ''
+      ).toLowerCase();
+      
+      console.log(`Poll attempt ${i + 1}/${maxAttempts}: Status = ${status}`);
+      
+      if (status === 'completed' || status === 'successful' || status === 'success') {
+        console.log('✅ Payment confirmed!');
+        return 'success';
+      }
+      if (status === 'failed' || status === 'cancelled' || status === 'rejected') {
+        console.log('❌ Payment failed:', status);
+        return 'failed';
+      }
+      if (status === 'pending' || status === 'processing') {
+        console.log('⏳ Payment still processing...');
+        continue;
+      }
+      
+    } catch (e) {
+      lastError = e;
+      console.warn(`Poll attempt ${i + 1}/${maxAttempts}: Error -`, e.message);
+      continue;
+    }
+    
+    // Log progress every 12 attempts (1 minute)
+    if ((i + 1) % 12 === 0) {
+      console.log(`⏱ Payment confirmation in progress... ${Math.floor((i + 1) * intervalMs / 1000)}s elapsed`);
+    }
   }
+  
+  console.warn('⏱ Payment confirmation timeout after 20 minutes');
   return 'timeout';
 }
 
@@ -1774,6 +1836,8 @@ async function doDeposit() {
   
   const fullPhone = '+256' + phoneDigits;
   const reference = genUUID();
+  console.log('💳 New deposit reference:', reference);
+  
   const depositChargePercent = (settingsData.depositCharge || 3.7) / 100;
   const markedAmount = Math.round(amount * (1 + depositChargePercent));
   const oldStake = currentUser.stake || 0;
@@ -1783,9 +1847,9 @@ async function doDeposit() {
   document.getElementById('dep-amount').value = '';
   
   const popup = document.getElementById('popup-banner');
-  popup.textContent = '🔐 Confirm with mobile money PIN';
+  popup.textContent = '🔐 Confirm with mobile money PIN (you have up to 20 minutes)';
   popup.classList.add('show');
-  setTimeout(() => popup.classList.remove('show'), 1000);
+  setTimeout(() => popup.classList.remove('show'), 3000);
   
   const adminTxKey = 'adm_dep_' + Date.now();
   const adminTxRecord = {
@@ -1836,6 +1900,7 @@ async function doDeposit() {
     const pollResult = await pollPaymentStatus(txUuid);
     
     if (pollResult === 'success') {
+      console.log('✅ Payment confirmed! Crediting deposit...');
       const newStake = oldStake + amount;
       const newBalance = (currentUser.balance || 0) + profit;
       const depKey = 'dep_' + Date.now();
@@ -1849,7 +1914,8 @@ async function doDeposit() {
           amount: amount,
           startDate: new Date().toISOString(),
           lastPaidDate: null,
-          status: 'active'
+          status: 'active',
+          reference: reference
         },
         [`transactions/${userTxKey}/status`]: 'successful',
         [`transactions/${userTxKey}/note`]: 'Deposit confirmed ✅ + 10% instant profit',
@@ -1868,6 +1934,8 @@ async function doDeposit() {
         status: 'successful',
         note: 'Deposit confirmed ✅ + 10% instant profit'
       });
+      
+      showToast(`✅ Deposit of UGX ${fmt(amount)} confirmed! + UGX ${fmt(profit)} instant profit`, '#10b981');
       
       // Update referrer's referral record to show investment status for all 3 levels
       if(currentUser.referredBy) {
@@ -1919,18 +1987,26 @@ async function doDeposit() {
       renderHistory();
       
     } else if (pollResult === 'failed') {
+      console.error('❌ Payment failed');
       await db.ref('adminTransactions/' + adminTxKey).update({ status: 'failed' });
       await db.ref('users/' + safeKey(currentUsername) + '/transactions/' + userTxKey).update({
         status: 'failed',
         note: 'Payment failed ❌'
       });
+      showToast('❌ Payment failed. Please try again.', '#ef4444');
+      btn.disabled = false;
+      btn.textContent = '💳 SUBMIT DEPOSIT';
       
     } else {
       // Timeout - deposit remains pending for recovery on next login
+      console.warn('⏱ Payment confirmation timeout - will recover on next login');
       await db.ref('adminTransactions/' + adminTxKey).update({ 
         status: 'pending_confirmation',
         note: 'Payment confirmation timeout - will check on next login'
       });
+      showToast('⏱ Payment confirmation taking longer than expected. Will check on next login.', '#f59e0b');
+      btn.disabled = false;
+      btn.textContent = '💳 SUBMIT DEPOSIT';
       // Pending transaction stays in user data for recovery
     }
     
@@ -1941,6 +2017,9 @@ async function doDeposit() {
       status: 'failed',
       note: 'Deposit processing error'
     });
+    showToast(`❌ Error: ${error.message}`, '#ef4444');
+    btn.disabled = false;
+    btn.textContent = '💳 SUBMIT DEPOSIT';
   }
   
   btn.disabled = false;

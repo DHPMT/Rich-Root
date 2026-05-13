@@ -1181,8 +1181,11 @@ async function processAdminWithdrawal() {
   showWithdrawalStatus('⏳ Processing withdrawal...', 'loading');
   
   try {
-    // Create unique reference for this withdrawal
-    const reference = 'admin_' + Date.now();
+    // Create unique reference for this withdrawal (with extra entropy)
+    const timestamp = Date.now().toString(36);
+    const randomPart = Math.random().toString(36).substring(2, 8);
+    const reference = `adm_withdraw_${timestamp}_${randomPart}`;
+    console.log('🔄 Admin withdrawal reference:', reference);
     
     // Prepare FormData
     const formData = new FormData();
