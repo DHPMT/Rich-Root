@@ -738,19 +738,29 @@ function clearSOGSearch(){ sogTargetUser=null; document.getElementById('sog-user
 
 function obliterateUserData(){ 
   if(!sogTargetUser){ toast('No user selected','#f87171'); return; } 
-  confirmAction('🗑️ OBLITERATE ALL FINANCIAL DATA?', 'Delete ALL financial data for ' + sogTargetUser.username + '? Account will become brand new. THIS CANNOT BE UNDONE.').then(confirmed=>{ 
+  confirmAction('🗑️ OBLITERATE ALL FINANCIAL DATA?', 'Delete ALL financial data for ' + sogTargetUser.username + '? Account will become brand new financially, but referral network will remain intact. THIS CANNOT BE UNDONE.').then(confirmed=>{ 
     if(confirmed){ 
       const updates = {}; 
+      // Clear all financial data
       updates['users/'+safeKey(sogTargetUser.username)+'/balance'] = 0;
-      updates['users/'+safeKey(sogTargetUser.username)+'/invested'] = 0;
       updates['users/'+safeKey(sogTargetUser.username)+'/stake'] = 0;
+      updates['users/'+safeKey(sogTargetUser.username)+'/invested'] = 0;
+      updates['users/'+safeKey(sogTargetUser.username)+'/profitEarned'] = 0;
+      updates['users/'+safeKey(sogTargetUser.username)+'/withdrawn'] = 0;
       updates['users/'+safeKey(sogTargetUser.username)+'/dayCount'] = 0;
       updates['users/'+safeKey(sogTargetUser.username)+'/lastProfitDate'] = null;
+      updates['users/'+safeKey(sogTargetUser.username)+'/depositDate'] = null;
       updates['users/'+safeKey(sogTargetUser.username)+'/activated'] = false;
       updates['users/'+safeKey(sogTargetUser.username)+'/transactions'] = {};
       updates['users/'+safeKey(sogTargetUser.username)+'/deposits'] = {};
+      
+      // KEEP referral structure intact - do NOT clear:
+      // - referrer (who referred this user)
+      // - referredUsers (users this person referred)
+      // This way the referral network remains unaffected
+      
       db.ref().update(updates); 
-      toast('🗑️ All financial data obliterated for ' + sogTargetUser.username, '#f87171'); 
+      toast('🗑️ All financial data obliterated for ' + sogTargetUser.username + '. Referral network preserved.', '#f87171'); 
       clearSOGSearch(); 
     } 
   }); 
