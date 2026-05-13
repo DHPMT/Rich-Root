@@ -1186,41 +1186,10 @@ async function recoverPendingDeposit(txKey, tx){
   const freshUser = await dbGet('users/'+safeKey(currentUsername));
   if(!freshUser) return;
   
-  // CRITICAL: Check if deposit already credited to prevent duplicate profits
   if(tx.credited === true){
-    console.log('✅ Deposit already credited, skipping recovery profit creation');
     await dbUpdate('users/'+safeKey(currentUsername), {
       ['transactions/'+txKey+'/status']: 'successful',
       ['transactions/'+txKey+'/note']: 'Deposit confirmed ✅'
-    });
-    return;
-  }
-  
-  // Also check if a profit for this deposit already exists (extra safety)
-  let profitAlreadyExists = false;
-  if(freshUser.transactions) {
-    Object.values(freshUser.transactions).forEach(txItem => {
-      if(txItem.type === 'Profit' && txItem.note === '10% instant profit on deposit' && txItem.amount === profit && !txItem.note.includes('recovered')) {
-        // Check if this profit is from today (within 1 hour of now to be safe)
-        try {
-          const txDate = new Date(txItem.date);
-          const now = new Date();
-          const timeDiff = Math.abs(now - txDate);
-          if(timeDiff < 60 * 60 * 1000) { // Within 1 hour
-            profitAlreadyExists = true;
-            console.warn('⚠️  Profit transaction already exists for this amount, skipping to prevent duplicate');
-          }
-        } catch(e) {}
-      }
-    });
-  }
-  
-  if(profitAlreadyExists) {
-    // Just mark as credited without creating another profit
-    await dbUpdate('users/'+safeKey(currentUsername), {
-      ['transactions/'+txKey+'/status']: 'successful',
-      ['transactions/'+txKey+'/note']: 'Deposit confirmed ✅ (no duplicate profit)',
-      ['transactions/'+txKey+'/credited']: true
     });
     return;
   }
@@ -1238,7 +1207,7 @@ async function recoverPendingDeposit(txKey, tx){
   updates['transactions/'+txKey+'/status'] = 'successful';
   updates['transactions/'+txKey+'/note'] = 'Deposit confirmed ✅ (recovered)';
   updates['transactions/'+txKey+'/credited'] = true;
-  updates['transactions/'+profitTxKey] = {type:'Profit',amount:profit,note:'10% instant profit on deposit (recovered)',date:dateStr(),status:'successful'};
+  updates['transactions/'+profitTxKey] = {type:'Profit',amount:profit,note:'10% instant profit on deposit',date:dateStr(),status:'successful'};
   updates['deposits/'+depKey] = {amount, startDate:new Date().toISOString(), daysRun:0, lastPaidDate:null, bonusPaid: false};
   
   await dbUpdate('users/'+safeKey(currentUsername), updates);
