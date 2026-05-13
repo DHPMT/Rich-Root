@@ -938,8 +938,29 @@ function updateBalanceUI(){
   const balance = currentUser.balance || 0;
   
   document.getElementById('stat-invested').textContent=fmt(invested);
-  document.getElementById('stat-balance').textContent=fmt(Math.max(0, balance));
-  const el=document.getElementById('reinvest-balance-display'); if(el)el.textContent=fmt(Math.max(0, balance));
+  
+  // Display balance with RED color if negative
+  const balanceEl = document.getElementById('stat-balance');
+  balanceEl.textContent = fmt(balance);
+  if(balance < 0) {
+    balanceEl.style.color = 'var(--warn)';
+    balanceEl.style.fontWeight = '800';
+  } else {
+    balanceEl.style.color = 'var(--accent3)';
+    balanceEl.style.fontWeight = '800';
+  }
+  
+  // Display reinvest balance with RED if negative
+  const el = document.getElementById('reinvest-balance-display');
+  if(el) {
+    el.textContent = fmt(balance);
+    if(balance < 0) {
+      el.style.color = 'var(--warn)';
+      el.style.fontWeight = '800';
+    } else {
+      el.style.color = 'var(--accent3)';
+    }
+  }
 }
 
 function filterHistory(type, tabEl){
