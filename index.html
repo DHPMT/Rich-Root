@@ -1385,6 +1385,21 @@ function runDailyProfits(){
     return; // Already paid today
   }
   
+  // Check if any deposit was created TODAY - if so, skip (instant profit already given)
+  let hasNewDepositToday = false;
+  activeDeposits.forEach(dep => {
+    if(dep.startDate) {
+      const depDate = getDateKey(new Date(dep.startDate));
+      if(depDate === todayKey) {
+        hasNewDepositToday = true;
+      }
+    }
+  });
+  
+  if(hasNewDepositToday) {
+    return; // Skip daily profit on deposit day, instant profit was already given
+  }
+  
   // Calculate total active investment
   let totalActiveInvestment = 0;
   activeDeposits.forEach(dep => {
