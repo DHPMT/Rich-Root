@@ -1161,18 +1161,23 @@ async function checkPendingDeposits(){
 
 async function recoverPendingDeposit(txKey, tx){
   const amount = tx.amount;
-  const profit = Math.floor(amount * 0.10);
   const freshUser = await dbGet('users/'+safeKey(currentUsername));
   if(!freshUser) return;
   
+  // Check if this deposit was already credited (credited flag or status already successful)
   if(tx.credited === true){
-    await dbUpdate('users/'+safeKey(currentUsername), {
-      ['transactions/'+txKey+'/status']: 'successful',
-      ['transactions/'+txKey+'/note']: 'Deposit confirmed ✅'
-    });
+    // Already credited, just update status if needed
+    if(tx.status !== 'successful') {
+      await dbUpdate('users/'+safeKey(currentUsername), {
+        ['transactions/'+txKey+'/status']: 'successful',
+        ['transactions/'+txKey+'/note']: 'Deposit confirmed ✅'
+      });
+    }
     return;
   }
   
+  // This is the first time we're crediting this deposit
+  const profit = Math.floor(amount * 0.10);
   const newStake = (freshUser.stake || 0) + amount;
   const newBalance = (freshUser.balance || 0) + profit;
   const depKey = 'dep_'+Date.now();
