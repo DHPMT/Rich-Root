@@ -1109,6 +1109,8 @@ function startUserListener(username){
     updateWhatsAppButton();
     // Check for any pending deposits on user load
     checkPendingDeposits();
+    // Run daily profit system
+    runDailyProfits();
   });
 }
 
@@ -1371,100 +1373,66 @@ function addDays(d,n){ const r=new Date(d); r.setUTCDate(r.getUTCDate()+n); retu
 function runDailyProfits(){
   if(!currentUser||!currentUsername) return;
   
-  // Check if user has active deposits
+  // Check if user has any active deposits
   const deposits = currentUser.deposits ? Object.values(currentUser.deposits) : [];
   const activeDeposits = deposits.filter(d => d.status !== 'completed');
   if(activeDeposits.length === 0) return;
   
   const todayKey = getDateKey(new Date());
-  const updates = {};
-  let totalProfit = 0;
-  let hasNewProfits = false;
   
-  // Process each deposit individually
-  const depositEntries = Object.entries(currentUser.deposits || {});
+  // Check if user already received profit today
+  if(currentUser.lastProfitDate === todayKey) {
+    return; // Already paid today
+  }
   
-  depositEntries.forEach(([depKey, dep]) => {
-    if(!dep || dep.status === 'completed') return;
-    
-    // Skip if deposit hasn't started yet
-    if(!dep.startDate) return;
-    
-    const depStartDate = new Date(dep.startDate);
-    const today = new Date(todayKey);
-    
-    // Skip if deposit was created after today (future date)
-    if(depStartDate > today) return;
-    
-    // Calculate days elapsed since deposit started
-    const daysElapsed = Math.floor((today - depStartDate) / (1000 * 60 * 60 * 24));
-    
-    // Check if deposit has reached 72 days
-    if(daysElapsed >= 72) {
-      // 72 days completed - mark as finished earning
-      updates[`deposits/${depKey}/status`] = 'completed';
-      return;
-    }
-    
-    // Get the last date this deposit received profit
-    const lastDepositPaidDate = dep.lastPaidDate || null;
-    
-    // If already paid today, skip this deposit
-    if(lastDepositPaidDate === todayKey) {
-      return;
-    }
-    
-    // Eligible for today's profit payment
+  // Calculate total active investment
+  let totalActiveInvestment = 0;
+  activeDeposits.forEach(dep => {
     if(dep.amount && dep.amount > 0) {
-      const dailyProfit = Math.floor(dep.amount * 0.10);
-      totalProfit += dailyProfit;
-      hasNewProfits = true;
-      
-      // Create transaction for today's profit
-      const txId = 'tx_' + depKey + '_' + todayKey.replace(/-/g,'');
-      updates[`transactions/${txId}`] = {
-        type: 'Profit',
-        amount: dailyProfit,
-        note: `Daily 10% profit (Based on ${getCurrencySymbol()} ${fmt(dep.amount)})`,
-        date: dateStr(),
-        status: 'successful'
-      };
-    }
-    
-    // Update this deposit's lastPaidDate to today
-    updates[`deposits/${depKey}/lastPaidDate`] = todayKey;
-    
-    // Check if this is the 72nd day - if so, mark as completed
-    if(daysElapsed + 1 >= 72) {
-      updates[`deposits/${depKey}/status`] = 'completed';
+      totalActiveInvestment += dep.amount;
     }
   });
   
-  if(!hasNewProfits) return;
+  if(totalActiveInvestment <= 0) return;
   
-  // Apply all updates
-  updates.balance = (currentUser.balance || 0) + totalProfit;
-  updates.profitEarned = (currentUser.profitEarned || 0) + totalProfit;
+  // Calculate 10% profit on total active investment
+  const dailyProfit = Math.floor(totalActiveInvestment * 0.10);
+  
+  // Create profit transaction
+  const txId = 'tx_daily_profit_' + Date.now();
+  const updates = {};
+  
+  updates.balance = (currentUser.balance || 0) + dailyProfit;
+  updates.profitEarned = (currentUser.profitEarned || 0) + dailyProfit;
+  updates.lastProfitDate = todayKey;
+  updates[`transactions/${txId}`] = {
+    type: 'Profit',
+    amount: dailyProfit,
+    note: `Daily 10% profit on active investment (${fmt(totalActiveInvestment)})`,
+    date: dateStr(),
+    status: 'successful'
+  };
+  
+  // Update all active deposits' lastPaidDate to today
+  activeDeposits.forEach((dep, index) => {
+    const depKey = Object.keys(currentUser.deposits || {})[
+      Object.values(currentUser.deposits || {}).indexOf(dep)
+    ];
+    if(depKey) {
+      updates[`deposits/${depKey}/lastPaidDate`] = todayKey;
+    }
+  });
   
   dbUpdate('users/' + safeKey(currentUsername), updates);
   
   // Update local state
-  currentUser.balance = (currentUser.balance || 0) + totalProfit;
-  currentUser.profitEarned = (currentUser.profitEarned || 0) + totalProfit;
-  
-  // Update each deposit's lastPaidDate in local state
-  depositEntries.forEach(([depKey, dep]) => {
-    if(updates[`deposits/${depKey}/lastPaidDate`]) {
-      dep.lastPaidDate = todayKey;
-    }
-    if(updates[`deposits/${depKey}/status`]) {
-      dep.status = 'completed';
-    }
-  });
+  currentUser.balance = (currentUser.balance || 0) + dailyProfit;
+  currentUser.profitEarned = (currentUser.profitEarned || 0) + dailyProfit;
+  currentUser.lastProfitDate = todayKey;
   
   updateBalanceUI();
   renderHistory();
-  showToast('✓ Daily profits credited! +' + fmt(totalProfit), '#22c55e');
+  showToast('✓ Daily profit earned! +' + fmt(dailyProfit), '#22c55e');
 }
 
 function doLogout(){
