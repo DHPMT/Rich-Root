@@ -1457,8 +1457,8 @@ function runDailyProfits(){
     // Get the last date this deposit received profit
     const lastDepositPaidDate = dep.lastPaidDate || null;
     
-    // If already paid today, skip
-    if(lastDepositPaidDate === todayKey) {
+    // SAFEGUARD 1: Check if already paid today
+    if(lastDepositPaidDate && lastDepositPaidDate === todayKey) {
       return;
     }
     
@@ -1466,26 +1466,11 @@ function runDailyProfits(){
     let daysToCredit = [];
     
     if(!lastDepositPaidDate) {
-      // First time - start from deposit date and credit ALL days up to today
-      let currentDate = new Date(depStartDate);
-      while(currentDate <= today) {
-        const dayCount = Math.floor((currentDate - depStartDate) / (1000 * 60 * 60 * 24));
-        if(dayCount < 72) {
-          daysToCredit.push(getDateKey(currentDate));
-        }
-        currentDate.setUTCDate(currentDate.getUTCDate() + 1);
-      }
+      // First time - only credit today (not all past days)
+      daysToCredit.push(todayKey);
     } else {
-      // Not first time - start from day AFTER last paid date
-      let currentDate = new Date(lastDepositPaidDate);
-      currentDate.setUTCDate(currentDate.getUTCDate() + 1);
-      while(currentDate <= today) {
-        const dayCount = Math.floor((currentDate - depStartDate) / (1000 * 60 * 60 * 24));
-        if(dayCount < 72) {
-          daysToCredit.push(getDateKey(currentDate));
-        }
-        currentDate.setUTCDate(currentDate.getUTCDate() + 1);
-      }
+      // Not first time - only credit today
+      daysToCredit.push(todayKey);
     }
     
     if(daysToCredit.length === 0) return;
