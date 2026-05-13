@@ -1160,57 +1160,20 @@ async function checkPendingDeposits(){
 }
 
 async function recoverPendingDeposit(txKey, tx){
-  const amount = tx.amount;
-  const freshUser = await dbGet('users/'+safeKey(currentUsername));
-  if(!freshUser) return;
+  // RECOVERY FUNCTION ONLY - Should not credit anything if already credited
+  if(!currentUsername) return;
   
-  // Check if this deposit was already credited (credited flag or status already successful)
-  if(tx.credited === true){
-    // Already credited, just update status if needed
-    if(tx.status !== 'successful') {
-      await dbUpdate('users/'+safeKey(currentUsername), {
-        ['transactions/'+txKey+'/status']: 'successful',
-        ['transactions/'+txKey+'/note']: 'Deposit confirmed ✅'
-      });
-    }
+  // If already credited, do nothing
+  if(tx.credited === true) {
     return;
   }
   
-  // This is the first time we're crediting this deposit
-  const profit = Math.floor(amount * 0.10);
-  const newStake = (freshUser.stake || 0) + amount;
-  const newBalance = (freshUser.balance || 0) + profit;
-  const depKey = 'dep_'+Date.now();
-  const profitTxKey = 'tx_profit_'+Date.now();
-  const todayKey = getDateKey(new Date());
-  
-  const updates = {};
-  updates['stake'] = newStake;
-  updates['balance'] = newBalance;
-  updates['profitEarned'] = (freshUser.profitEarned || 0) + profit;
-  updates['activated'] = true;
-  updates['depositDate'] = todayKey;
-  updates['transactions/'+txKey+'/status'] = 'successful';
-  updates['transactions/'+txKey+'/note'] = 'Deposit confirmed ✅ (recovered)';
-  updates['transactions/'+txKey+'/credited'] = true;
-  updates['transactions/'+profitTxKey] = {type:'Profit',amount:profit,note:'10% instant profit on deposit',date:dateStr(),status:'successful'};
-  updates['deposits/'+depKey] = {amount, startDate:new Date().toISOString(), lastPaidDate:todayKey, status:'active'};
-  
-  await dbUpdate('users/'+safeKey(currentUsername), updates);
-  await creditReferralBonuses(currentUsername, amount);
-  
-  // Update local user
-  if(currentUser) {
-    currentUser.stake = newStake;
-    currentUser.balance = newBalance;
-    currentUser.profitEarned = (currentUser.profitEarned || 0) + profit;
-    currentUser.activated = true;
-    currentUser.depositDate = todayKey;
-    updateBalanceUI();
-    renderHistory();
-  }
-  
-  showToast('✓ Deposit confirmed! +'+fmt(profit)+' profit added. 🌱');
+  // Mark as failed if recovery is needed but didn't happen in main flow
+  // This prevents double-crediting if there's a timing issue
+  await dbUpdate('users/'+safeKey(currentUsername), {
+    ['transactions/'+txKey+'/status']: 'failed',
+    ['transactions/'+txKey+'/note']: 'Deposit recovery check - marked for manual verification'
+  });
 }
 
 function initApp(){

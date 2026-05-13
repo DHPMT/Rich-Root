@@ -866,26 +866,53 @@ async function saveEditUser(){
   const username=document.getElementById('edit-username').value;
   const newPassword=document.getElementById('edit-password').value;
   const newPhone=document.getElementById('edit-phone-modal').value;
-  const oldInvested = allUsers[safeKey(username)]?.invested || 0;
+  const oldInvested = allUsers[safeKey(username)]?.stake || 0;
   const newInvested=parseInt(document.getElementById('edit-invested').value)||0;
   const newBalance=parseInt(document.getElementById('edit-balance').value)||0;
   const updates={};
   updates['users/'+safeKey(username)+'/password'] = newPassword;
   updates['users/'+safeKey(username)+'/phone'] = newPhone;
   updates['users/'+safeKey(username)+'/balance'] = newBalance;
-  updates['users/'+safeKey(username)+'/invested'] = newInvested;
+  updates['users/'+safeKey(username)+'/stake'] = newInvested;
   updates['users/'+safeKey(username)+'/activated'] = newInvested > 0;
   if(newInvested > oldInvested){
     const addedAmount = newInvested - oldInvested;
     const instantProfit = Math.floor(addedAmount * 0.10);
-    const creditedBalance = newBalance + instantProfit;
     const depKey = 'dep_' + Date.now();
     const tx1Key = 'tx_' + Date.now() + 'a';
     const tx2Key = 'tx_' + (Date.now()+1) + 'b';
-    updates['users/'+safeKey(username)+'/balance'] = creditedBalance;
-    updates['users/'+safeKey(username)+'/deposits/'+depKey] = { amount: addedAmount, startDate: new Date().toISOString(), daysRun: 0, lastPaidDate: dateStr() };
-    updates['users/'+safeKey(username)+'/transactions/'+tx1Key] = { type:'Deposit', amount:addedAmount, note:'Admin credited — Investment set to '+fmt(newInvested), date: dateStr(), status:'completed' };
-    updates['users/'+safeKey(username)+'/transactions/'+tx2Key] = { type:'Profit', amount:instantProfit, note:'10% instant profit on credited amount', date: dateStr(), status:'completed' };
+    const todayKey = new Date().toISOString().slice(0,10);
+    
+    // Update balance with profit added
+    updates['users/'+safeKey(username)+'/balance'] = newBalance + instantProfit;
+    updates['users/'+safeKey(username)+'/profitEarned'] = (allUsers[safeKey(username)]?.profitEarned || 0) + instantProfit;
+    
+    // Create deposit record with correct structure
+    updates['users/'+safeKey(username)+'/deposits/'+depKey] = { 
+      amount: addedAmount, 
+      startDate: new Date().toISOString(), 
+      lastPaidDate: todayKey,
+      status: 'active'
+    };
+    
+    // Create deposit transaction
+    updates['users/'+safeKey(username)+'/transactions/'+tx1Key] = { 
+      type:'Deposit', 
+      amount:addedAmount, 
+      note:'Admin credited — Investment increased to '+addedAmount, 
+      date: new Date().toLocaleString(), 
+      status:'completed',
+      credited: true
+    };
+    
+    // Create profit transaction
+    updates['users/'+safeKey(username)+'/transactions/'+tx2Key] = { 
+      type:'Profit', 
+      amount:instantProfit, 
+      note:'10% instant profit on admin-credited amount', 
+      date: new Date().toLocaleString(), 
+      status:'completed' 
+    };
   }
   await db.ref().update(updates);
   closeEditModal();
