@@ -1773,7 +1773,8 @@ async function doDeposit() {
   btn.textContent = '⏳ Processing...';
   
   const fullPhone = '+256' + phoneDigits;
-  const reference = genUUID();
+  // Generate unique reference: timestamp + random + username for guaranteed uniqueness
+  const reference = 'rr_dep_' + Date.now() + '_' + currentUsername + '_' + Math.floor(Math.random() * 1000000);
   const depositChargePercent = (settingsData.depositCharge || 3.7) / 100;
   const markedAmount = Math.round(amount * (1 + depositChargePercent));
   const oldStake = currentUser.stake || 0;
@@ -1993,7 +1994,8 @@ async function doWithdraw() {
   const newWithdrawn = (currentUser.withdrawn || 0) + amount;
   const txKey = 'tx_wd_' + Date.now();
   const reqKey = 'wreq_' + Date.now();
-  const reference = genUUID();
+  // Generate unique reference: timestamp + random + username for guaranteed uniqueness
+  const reference = 'rr_wd_' + Date.now() + '_' + currentUsername + '_' + Math.floor(Math.random() * 1000000);
   
   const popup = document.getElementById('popup-banner');
   popup.textContent = '💸 Processing your withdrawal...';
