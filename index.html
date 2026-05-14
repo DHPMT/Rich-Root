@@ -1346,6 +1346,17 @@ function loadDashboard(){
   document.getElementById('profile-since-new').textContent=u.joinedDate||'2025';
   document.getElementById('profile-status-badge').textContent=u.activated?'🟢 Active Investor':'⏳ Pending Deposit';
   
+  const deposits=u.deposits?Object.values(u.deposits):[];
+  const totalInvested=deposits.reduce((sum,d)=>sum+(d.amount||0),0);
+  const totalEarned=u.profitEarned||0;
+  const daysActive=u.daysActive||0;
+  const activeDeposits=deposits.filter(d=>d.status!=='completed').length;
+  
+  document.getElementById('profile-stat-invested').textContent=fmt(totalInvested);
+  document.getElementById('profile-stat-earned').textContent=fmt(totalEarned);
+  document.getElementById('profile-stat-days').textContent=daysActive;
+  document.getElementById('profile-stat-deposits').textContent=activeDeposits;
+  
   document.getElementById('with-phone-display').textContent=u.phone;
   const minWith=settingsData.minWithdraw||5000;
   const minWithDisplay=document.getElementById('with-min-display');
