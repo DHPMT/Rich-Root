@@ -861,7 +861,6 @@ function showDashboard(){
   document.getElementById('dashboard-page').style.display='block';
   document.getElementById('dashboard-page').classList.add('active');
   updateWhatsAppButton();
-  setTimeout(loadAndShowAnnouncements, 800);
 }
 function hideLoading(){ document.getElementById('loading-screen').style.display='none'; }
 function switchTab(tab){
@@ -2267,62 +2266,6 @@ setTimeout(() => {
     startZangiListener();
   }
 }, 1000);
-
-// ============================================================
-// ANNOUNCEMENTS - Full Screen Overlay
-// ============================================================
-
-let annQueue = [];
-let annTimer = null;
-
-function showNextAnnouncement() {
-  if (annTimer) { clearTimeout(annTimer); annTimer = null; }
-  if (!annQueue.length) {
-    const overlay = document.getElementById('ann-overlay');
-    if (overlay) overlay.style.display = 'none';
-    return;
-  }
-  const ann = annQueue.shift();
-  const overlay = document.getElementById('ann-overlay');
-  const box = document.getElementById('ann-box');
-  const msg = document.getElementById('ann-msg');
-  const closeBtn = document.getElementById('ann-close-btn');
-
-  box.style.background = ann.bgColor || '#ef4444';
-  msg.style.color = ann.textColor || '#ffffff';
-  closeBtn.style.color = ann.textColor || '#ffffff';
-  msg.textContent = ann.message;
-  overlay.style.display = 'flex';
-
-  annTimer = setTimeout(() => {
-    showNextAnnouncement();
-  }, 7000);
-}
-
-function dismissAnnouncement() {
-  if (annTimer) { clearTimeout(annTimer); annTimer = null; }
-  showNextAnnouncement();
-}
-
-function loadAndShowAnnouncements() {
-  if (!db) return;
-  db.ref('announcements').orderByChild('timestamp').once('value', snap => {
-    annQueue = [];
-    if (!snap.exists()) return;
-    snap.forEach(child => { annQueue.push(child.val()); });
-    if (annQueue.length) showNextAnnouncement();
-  });
-}
 </script>
-
-<!-- ANNOUNCEMENT OVERLAY -->
-<div id="ann-overlay" style="display:none;position:fixed;inset:0;z-index:9999;align-items:center;justify-content:center;background:rgba(0,0,0,0.6);padding:20px;">
-  <div id="ann-box" style="position:relative;width:100%;max-width:480px;border-radius:20px;padding:40px 28px 36px;box-shadow:0 20px 60px rgba(0,0,0,0.4);text-align:center;">
-    <button id="ann-close-btn" onclick="dismissAnnouncement()" style="position:absolute;top:14px;right:16px;background:none;border:none;font-size:26px;cursor:pointer;line-height:1;opacity:0.85;">✕</button>
-    <div style="font-size:32px;margin-bottom:16px;">📢</div>
-    <div id="ann-msg" style="font-size:16px;font-weight:700;line-height:1.6;font-family:'DM Sans',sans-serif;"></div>
-  </div>
-</div>
-
 </body>
 </html>
