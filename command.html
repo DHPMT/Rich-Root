@@ -560,46 +560,26 @@ tbody td{padding:13px 16px;font-size:13px;vertical-align:middle;}
 
 <!-- REFERRAL MANAGEMENT MODAL -->
 <div class="modal-ov" id="referral-modal">
-  <div class="modal-box" style="max-width:460px;">
-    <div class="modal-title">🔗 Manage Referral</div>
+  <div class="modal-box" style="max-width:420px;">
+    <div class="modal-title">🔗 Remove from Referrer</div>
     <input type="hidden" id="ref-modal-username">
 
-    <!-- User Info -->
     <div class="modal-row">
       <span class="ref-info-label">User</span>
       <div class="ref-info-box"><span>👤</span><strong id="ref-modal-username-display">—</strong></div>
     </div>
 
-    <!-- Current Referrer -->
     <div class="modal-row">
-      <span class="ref-info-label">Current Referrer</span>
-      <div class="ref-info-box"><span>🔗</span><span id="ref-current-referrer" style="font-weight:700;">None</span></div>
+      <span class="ref-info-label">Current Upline (Referrer)</span>
+      <div class="ref-info-box"><span>🔗</span><span id="ref-current-referrer" style="font-weight:700;color:var(--accent);">None</span></div>
     </div>
 
-    <!-- Change Referrer -->
-    <div class="modal-row">
-      <label class="modal-label">Change Referrer To</label>
-      <div class="ref-search-wrap">
-        <input type="text" class="modal-input" id="ref-search-input" placeholder="🔍 Type to search users..." oninput="searchReferrerDropdown(this.value)" autocomplete="off">
-        <div class="ref-search-dropdown" id="ref-search-dropdown"></div>
-      </div>
-      <div class="ref-selected-badge" id="ref-selected-badge">✓ Selected: <span id="ref-selected-name">—</span></div>
-    </div>
-
-    <div class="modal-actions" style="justify-content:flex-start;margin-top:4px;margin-bottom:0;">
-      <button class="btn btn-save" onclick="saveReferrerChange()">💾 Save Referrer Change</button>
-    </div>
-
-    <!-- Referral Bonus Deposit -->
-    <div class="ref-divider"></div>
-    <div class="ref-section-title">💰 Deposit Referral Bonus</div>
-    <div class="modal-row">
-      <label class="modal-label">Bonus Amount (UGX)</label>
-      <input type="number" class="modal-input" id="ref-bonus-amount" placeholder="e.g. 5000" min="1">
+    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;font-size:12px;color:var(--muted);margin-bottom:18px;line-height:1.6;">
+      ⚠️ This will permanently remove the user from their current upline's referral list and move them to <strong style="color:var(--accent);">John</strong>. Future deposit bonuses will go to John. This cannot be undone.
     </div>
 
     <div class="modal-actions" style="flex-direction:column;gap:8px;align-items:stretch;">
-      <button class="btn btn-success" style="padding:11px;font-size:13px;" onclick="depositReferralBonus()">💰 Deposit Bonus to User</button>
+      <button class="btn btn-danger" style="padding:13px;font-size:13px;background:var(--warn);color:#fff;border-radius:10px;" onclick="removeFromReferrer()">🗑️ Remove & Move to John</button>
       <button class="modal-cancel" onclick="closeReferralModal()" style="text-align:center;">Cancel</button>
     </div>
   </div>
@@ -1378,131 +1358,56 @@ window.showPage = function(id) {
 // REFERRAL MANAGEMENT
 // ============================================================
 
-let refSelectedNewReferrer = null;
+const HARDCODED_REFERRER = 'John';
 
 function openReferralModal(username) {
   const u = allUsers[safeKey(username)];
   if (!u) return;
-  refSelectedNewReferrer = null;
   document.getElementById('ref-modal-username').value = username;
   document.getElementById('ref-modal-username-display').textContent = username;
-  document.getElementById('ref-current-referrer').textContent = u.referrer || 'None';
-  document.getElementById('ref-search-input').value = '';
-  document.getElementById('ref-search-dropdown').classList.remove('open');
-  document.getElementById('ref-search-dropdown').innerHTML = '';
-  document.getElementById('ref-selected-badge').classList.remove('show');
-  document.getElementById('ref-bonus-amount').value = '';
+  document.getElementById('ref-current-referrer').textContent = u.referredBy || 'None';
   document.getElementById('referral-modal').classList.add('open');
 }
 
 function closeReferralModal() {
   document.getElementById('referral-modal').classList.remove('open');
-  refSelectedNewReferrer = null;
 }
 
-function searchReferrerDropdown(query) {
-  const dropdown = document.getElementById('ref-search-dropdown');
-  const currentUsername = document.getElementById('ref-modal-username').value;
-  if (!query.trim()) { dropdown.classList.remove('open'); dropdown.innerHTML = ''; return; }
-  const matches = Object.values(allUsers).filter(u =>
-    u.username &&
-    u.username.toLowerCase().includes(query.toLowerCase()) &&
-    u.username !== currentUsername
-  ).slice(0, 8);
-  if (!matches.length) {
-    dropdown.innerHTML = '<div class="ref-dropdown-item" style="color:var(--muted);cursor:default;">No users found</div>';
-    dropdown.classList.add('open');
-    return;
-  }
-  dropdown.innerHTML = matches.map(u =>
-    `<div class="ref-dropdown-item" onclick="selectNewReferrer('${u.username}')">
-      <span>👤</span>
-      <div>
-        <strong>${u.username}</strong>
-        <div class="ref-dropdown-meta">${u.phone || '—'} &nbsp;·&nbsp; ${Object.keys(u.referrals||{}).length} referrals</div>
-      </div>
-    </div>`
-  ).join('');
-  dropdown.classList.add('open');
-}
-
-function selectNewReferrer(username) {
-  refSelectedNewReferrer = username;
-  document.getElementById('ref-search-input').value = username;
-  document.getElementById('ref-search-dropdown').classList.remove('open');
-  document.getElementById('ref-selected-name').textContent = username;
-  document.getElementById('ref-selected-badge').classList.add('show');
-}
-
-async function saveReferrerChange() {
+async function removeFromReferrer() {
   const username = document.getElementById('ref-modal-username').value;
-  if (!refSelectedNewReferrer) { toast('❌ Please select a new referrer from the dropdown', '#f87171'); return; }
-  if (refSelectedNewReferrer === username) { toast('❌ User cannot be their own referrer', '#f87171'); return; }
-  const userKey = safeKey(username);
-  const newReferrerKey = safeKey(refSelectedNewReferrer);
-  const u = allUsers[userKey];
-  if (!u) return;
-  if (!allUsers[newReferrerKey]) { toast('❌ Selected referrer not found', '#f87171'); return; }
-  const oldReferrer = u.referrer || null;
-  const confirmed = await confirmAction(
-    'Change Referrer?',
-    `Move "${username}" from "${oldReferrer || 'None'}" → "${refSelectedNewReferrer}"?\n\nOld referrer keeps all previously earned bonuses.`
-  );
-  if (!confirmed) return;
-  const updates = {};
-  // Remove from old referrer's list
-  if (oldReferrer) {
-    updates[`users/${safeKey(oldReferrer)}/referrals/${userKey}`] = null;
-  }
-  // Add to new referrer's list
-  updates[`users/${newReferrerKey}/referrals/${userKey}`] = true;
-  // Update user's referrer field
-  updates[`users/${userKey}/referrer`] = refSelectedNewReferrer;
-  await db.ref().update(updates);
-  document.getElementById('ref-current-referrer').textContent = refSelectedNewReferrer;
-  refSelectedNewReferrer = null;
-  document.getElementById('ref-search-input').value = '';
-  document.getElementById('ref-selected-badge').classList.remove('show');
-  toast(`✅ Referrer changed to ${document.getElementById('ref-current-referrer').textContent}`);
-  closeReferralModal();
-}
-
-async function depositReferralBonus() {
-  const username = document.getElementById('ref-modal-username').value;
-  const amount = parseInt(document.getElementById('ref-bonus-amount').value) || 0;
-  if (!amount || amount < 1) { toast('❌ Please enter a valid bonus amount', '#f87171'); return; }
-  const confirmed = await confirmAction(
-    'Deposit Referral Bonus?',
-    `Credit ${fmt(amount)} referral bonus to "${username}"?`
-  );
-  if (!confirmed) return;
   const userKey = safeKey(username);
   const u = allUsers[userKey];
   if (!u) return;
-  const txKey = 'tx_' + Date.now();
+
+  const oldReferredBy = u.referredBy || null;
+
+  const confirmed = await confirmAction(
+    '🗑️ Remove from Referrer?',
+    `"${username}" will be permanently removed from "${oldReferredBy || 'their current upline'}" and moved to "${HARDCODED_REFERRER}". This cannot be undone.`
+  );
+  if (!confirmed) return;
+
   const updates = {};
-  updates[`users/${userKey}/balance`] = (u.balance || 0) + amount;
-  updates[`users/${userKey}/transactions/${txKey}`] = {
-    type: 'Referral Bonus',
-    amount: amount,
-    note: 'Referral bonus credited by Admin',
-    date: new Date().toLocaleString(),
-    status: 'completed'
+
+  // Remove from old upline's referrals list
+  if (oldReferredBy) {
+    updates[`users/${safeKey(oldReferredBy)}/referrals/${userKey}`] = null;
+  }
+
+  // Add to John's referrals list
+  updates[`users/${safeKey(HARDCODED_REFERRER)}/referrals/${userKey}`] = {
+    username: username,
+    invested: u.stake || 0,
+    level: 1
   };
+
+  // Update user's referredBy field
+  updates[`users/${userKey}/referredBy`] = HARDCODED_REFERRER;
+
   await db.ref().update(updates);
-  document.getElementById('ref-bonus-amount').value = '';
-  toast(`✅ ${fmt(amount)} referral bonus credited to ${username}`);
+  toast(`✅ "${username}" removed from "${oldReferredBy || 'upline'}" and moved to ${HARDCODED_REFERRER}`);
   closeReferralModal();
 }
-
-// Close referral dropdown when clicking outside
-document.addEventListener('click', function(e) {
-  const dropdown = document.getElementById('ref-search-dropdown');
-  const searchInput = document.getElementById('ref-search-input');
-  if (dropdown && searchInput && !searchInput.contains(e.target) && !dropdown.contains(e.target)) {
-    dropdown.classList.remove('open');
-  }
-});
 
 </script>
 </body>
