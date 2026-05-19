@@ -2294,9 +2294,10 @@ function showNextAnnouncement() {
   msg.textContent = ann.message;
   overlay.style.display = 'flex';
 
+  const duration = ((ann.timer || 7) * 1000);
   annTimer = setTimeout(() => {
     showNextAnnouncement();
-  }, 7000);
+  }, duration);
 }
 
 function dismissAnnouncement() {

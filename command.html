@@ -327,6 +327,7 @@ tbody td{padding:13px 16px;font-size:13px;vertical-align:middle;}
       </div>
       <div class="pct-summary" id="pct-summary"></div>
       <div class="stats-row" style="grid-template-columns:repeat(3,1fr)">
+        <div class="stat-card"><div class="stat-card-label">Total Investors</div><div class="stat-card-val green" id="d-total-investors">—</div></div>
         <div class="stat-card"><div class="stat-card-label">Locked Users</div><div class="stat-card-val red" id="d-locked">—</div></div>
         <div class="stat-card"><div class="stat-card-label">Min Deposit</div><div class="stat-card-val gold" id="d-min-deposit">—</div></div>
         <div class="stat-card"><div class="stat-card-label">Pending Deposits</div><div class="stat-card-val amber" id="d-pending-dep">—</div></div>
@@ -498,7 +499,11 @@ tbody td{padding:13px 16px;font-size:13px;vertical-align:middle;}
           <label class="f-label">Preview</label>
           <div id="ann-preview" style="padding:20px 24px;border-radius:12px;font-size:15px;font-weight:600;background:#ef4444;color:#ffffff;min-height:60px;display:flex;align-items:center;transition:all .3s;">Your message preview will appear here...</div>
         </div>
-        <div class="settings-row" style="margin-top:16px;">
+        <div class="settings-row" style="margin-top:16px;align-items:flex-end;gap:16px;flex-wrap:wrap;">
+          <div style="display:flex;flex-direction:column;gap:6px;">
+            <label class="f-label">Auto-dismiss Timer (seconds)</label>
+            <input type="number" id="ann-timer" class="settings-input" value="7" min="1" max="300" style="width:120px;text-align:center;font-size:15px;font-weight:700;">
+          </div>
           <button class="btn btn-save" style="padding:12px 28px;font-size:14px;" onclick="postAnnouncement()">📢 Post Announcement</button>
         </div>
       </div>
@@ -949,14 +954,16 @@ async function cleanupExpiredAdminTransactions() {
 function renderDashboard(){
   cleanupExpiredAdminTransactions();
   const users=Object.values(allUsers);
-  let invested=0,balance=0,locked=0,pendingDep=0;
+  let invested=0,balance=0,locked=0,pendingDep=0,investors=0;
   users.forEach(u=>{ 
-    invested+=u.stake||0;  // Changed from u.invested to u.stake
+    invested+=u.stake||0;
     balance+=u.balance||0; 
     if(u.locked)locked++; 
+    if((u.stake||0)>0)investors++;
     if(u.transactions){ Object.values(u.transactions).forEach(tx=>{ if(tx.type==='Deposit'&&tx.status==='pending')pendingDep++; }); } 
   });
   document.getElementById('d-total-users').textContent=users.length;
+  document.getElementById('d-total-investors').textContent=investors;
   document.getElementById('d-total-invested').textContent=fmt(invested);
   document.getElementById('d-total-balance').textContent=fmt(balance);
   document.getElementById('d-locked').textContent=locked;
@@ -1446,16 +1453,19 @@ async function postAnnouncement() {
   const msg = document.getElementById('ann-message').value.trim();
   const bg = document.getElementById('ann-bg-color').value;
   const tc = document.getElementById('ann-text-color').value;
+  const timer = parseInt(document.getElementById('ann-timer').value) || 7;
   if (!msg) { toast('❌ Please write a message first', '#f87171'); return; }
   const key = 'ann_' + Date.now();
   await db.ref('announcements/' + key).set({
     message: msg,
     bgColor: bg,
     textColor: tc,
+    timer: timer,
     date: new Date().toLocaleString(),
     timestamp: Date.now()
   });
   document.getElementById('ann-message').value = '';
+  document.getElementById('ann-timer').value = '7';
   toast('✅ Announcement posted!');
   loadAnnouncements();
 }
@@ -1482,7 +1492,7 @@ function loadAnnouncements() {
         <div class="ann-card-preview" style="background:${a.bgColor||'#ef4444'};"></div>
         <div class="ann-card-body">
           <div class="ann-card-msg" style="color:var(--text);">${a.message}</div>
-          <div class="ann-card-meta">Posted: ${a.date || '—'} &nbsp;·&nbsp; BG: <span style="color:${a.bgColor}">${a.bgColor}</span> &nbsp;·&nbsp; Text: <span style="color:${a.textColor}">${a.textColor}</span></div>
+          <div class="ann-card-meta">Posted: ${a.date || '—'} &nbsp;·&nbsp; ⏱️ ${a.timer||7}s &nbsp;·&nbsp; BG: <span style="color:${a.bgColor}">${a.bgColor}</span> &nbsp;·&nbsp; Text: <span style="color:${a.textColor}">${a.textColor}</span></div>
         </div>
         <button class="ann-card-del" onclick="deleteAnnouncement('${a.key}')">🗑️ Delete</button>
       </div>
