@@ -38,6 +38,19 @@
   --avatar-bg:#831843;
   --ref-bg:#047857;
 }
+body.dark-mode{
+  --bg:#0f0f13;
+  --surface:#1a1a24;
+  --surface2:#22222f;
+  --surface3:#2a2a3a;
+  --border:#2e2e42;
+  --text:#f1f5f9;
+  --muted:#64748b;
+  --table-header:#0f2a20;
+  --table-border:#134e2a;
+  --avatar-bg:#4a0d2e;
+}
+.theme-toggle-btn{width:36px;height:36px;border-radius:10px;background:var(--surface);border:1px solid var(--border);font-size:17px;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 4px rgba(0,0,0,.1);transition:background .2s;}
 *{margin:0;padding:0;box-sizing:border-box;}
 body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;max-width:500px;margin:0 auto;position:relative;overflow-x:hidden;}
 
@@ -441,6 +454,7 @@ input[type="password"]{padding-right:46px;}
       <div class="brand"><img src="https://rich-root.site/logo.png" alt="Rich-Root" style="width:32px;height:32px;border-radius:8px;"><div class="brand-name">Rich-Root</div></div>
     </div>
     <div class="topbar-right">
+      <button class="theme-toggle-btn" id="theme-btn" onclick="toggleTheme()" title="Toggle Theme">☀️</button>
       <div id="topbar-avatar" class="avatar avatar-sm"></div>
       <div class="username-top" id="dash-username">—</div>
     </div>
@@ -2260,6 +2274,24 @@ function startZangiListener() {
     }
   });
 }
+
+// ============================================================
+// THEME TOGGLE
+// ============================================================
+function applyTheme(dark){
+  document.body.classList.toggle('dark-mode', dark);
+  const btn = document.getElementById('theme-btn');
+  if(btn) btn.textContent = dark ? '🌙' : '☀️';
+}
+function toggleTheme(){
+  const isDark = document.body.classList.contains('dark-mode');
+  localStorage.setItem('rr-user-theme', isDark ? 'light' : 'dark');
+  applyTheme(!isDark);
+}
+(function(){
+  const saved = localStorage.getItem('rr-user-theme');
+  if(saved === 'dark') applyTheme(true);
+})();
 
 // Start listener after Firebase initializes
 setTimeout(() => {
