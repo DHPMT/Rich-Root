@@ -748,13 +748,13 @@ input[type="password"]{padding-right:46px;}
 
         <!-- How to earn spins -->
         <div class="wheel-how">
-          <div class="wheel-how-title">🎯 How to Earn Spins (Direct Referrals Only)</div>
-          <div class="wheel-how-row"><span>3 direct referrals (10k+ deposit)</span><span>1 spin/day</span></div>
-          <div class="wheel-how-row"><span>5 direct referrals</span><span>2 spins/day</span></div>
-          <div class="wheel-how-row"><span>7 direct referrals</span><span>3 spins/day</span></div>
-          <div class="wheel-how-row"><span>10 direct referrals</span><span>4 spins/day</span></div>
-          <div class="wheel-how-row"><span>13 direct referrals</span><span>5 spins/day</span></div>
-          <div class="wheel-how-row"><span>16+ direct referrals</span><span>6 spins/day</span></div>
+          <div class="wheel-how-title">🎯 How to Earn Spins</div>
+          <div class="wheel-how-row"><span>3 active downlines (20k+)</span><span>1 spin/day</span></div>
+          <div class="wheel-how-row"><span>5 active downlines</span><span>2 spins/day</span></div>
+          <div class="wheel-how-row"><span>7 active downlines</span><span>3 spins/day</span></div>
+          <div class="wheel-how-row"><span>10 active downlines</span><span>4 spins/day</span></div>
+          <div class="wheel-how-row"><span>13 active downlines</span><span>5 spins/day</span></div>
+          <div class="wheel-how-row"><span>16+ active downlines</span><span>6 spins/day</span></div>
         </div>
       </div>
     </div>
@@ -845,9 +845,6 @@ let activePollingIntervals = {};
 
 const tabMap = {home:'sec-home',history:'sec-history',team:'sec-team',plan:'sec-plan',profile:'sec-profile',deposit:'sec-deposit',withdraw:'sec-withdraw',reinvest:'sec-reinvest',wheel:'sec-wheel'};
 const navOrder = ['home','history','team','plan','profile'];
-
-// Wheel global - declared early so switchTab can reference it
-let wheelLocked = false;
 
 function fmt(n){ return 'UGX '+Number(n||0).toLocaleString(); }
 function dateStr(){ const d=new Date(); return d.toLocaleDateString('en-UG',{day:'2-digit',month:'short',year:'numeric'})+' '+d.toLocaleTimeString('en-UG',{hour:'2-digit',minute:'2-digit'}); }
@@ -2364,6 +2361,7 @@ let wheelPrizes = [];
 let wheelSpinCount = 0;
 let wheelSpinning = false;
 let wheelCurrentAngle = 0;
+let wheelLocked = false;
 
 function getSpinsForDownlines(count) {
   let spins = 0;
@@ -2393,50 +2391,30 @@ async function initWheel() {
   const prizesSnap = await db.ref('spinSettings/prizes').once('value');
   wheelPrizes = prizesSnap.val() ? prizesSnap.val() : DEFAULT_PRIZES;
 
+  // Daily reset check
   const today = new Date().toDateString();
-  const userKey = safeKey(currentUser.username);
-  const spinSnap = await db.ref(`users/${userKey}/spinData`).once('value');
-  const spinData = spinSnap.val();
+  const spinSnap = await db.ref(`users/${safeKey(currentUser.username)}/spinData`).once('value');
+  let spinData = spinSnap.val() || {count:0, date:'', earned:0};
 
-  if (!spinData || spinData.date !== today) {
-    // New day or no record — wipe everything and calculate fresh
-    await db.ref(`users/${userKey}/spinData`).remove();
+  if (spinData.date !== today) {
+    // New day — recalculate from downlines
     const earned = await calcDailySpins();
-    // earned = 0 if not enough qualifying referrals — no free chances ever
-    if (earned > 0) {
-      await db.ref(`users/${userKey}/spinData`).set({count: earned, date: today, earned});
-      wheelSpinCount = earned;
-    } else {
-      wheelSpinCount = 0;
-    }
-  } else {
-    // Same day — use remaining count only (don't re-award)
-    // But check if qualifying count went up since last check
-    const earned = await calcDailySpins();
-    if (earned > (spinData.earned || 0)) {
-      // User earned more spins today — add the difference only
-      const extra = earned - (spinData.earned || 0);
-      const newCount = (spinData.count || 0) + extra;
-      await db.ref(`users/${userKey}/spinData`).set({count: newCount, date: today, earned});
-      wheelSpinCount = newCount;
-    } else {
-      // No change — use whatever is left
-      wheelSpinCount = spinData.count || 0;
-    }
+    spinData = {count: earned, date: today, earned};
+    await db.ref(`users/${safeKey(currentUser.username)}/spinData`).set(spinData);
   }
 
+  wheelSpinCount = spinData.count || 0;
   updateSpinUI();
   drawWheel();
 }
 
 async function calcDailySpins() {
-  // Only Level 1 (direct referrals) with stake >= 10,000 and not locked
   const refs = currentUser.referrals ? Object.keys(currentUser.referrals) : [];
   let qualifying = 0;
   for (const refKey of refs) {
     const snap = await db.ref(`users/${refKey}`).once('value');
     const u = snap.val();
-    if (u && (u.stake || 0) >= 10000 && !u.locked) qualifying++;
+    if (u && (u.stake || 0) >= 20000 && !u.locked) qualifying++;
   }
   return getSpinsForDownlines(qualifying);
 }
@@ -2507,42 +2485,30 @@ async function doSpin() {
   const total = wheelPrizes.length;
   const arc = (2 * Math.PI) / total;
 
-  // Always reset to 0 before spinning for true randomness each time
-  wheelCurrentAngle = 0;
-  drawWheel();
-
-  // Calculate exact rotation from angle 0 so pointer (top = -π/2) lands on winner center
-  const winnerSegCenter = winner.idx * arc + arc / 2;
-  let neededRotation = (-Math.PI / 2) - winnerSegCenter;
-  neededRotation = neededRotation % (2 * Math.PI);
-  if (neededRotation > 0) neededRotation -= 2 * Math.PI;
-  // Add 5-8 full rotations for dramatic effect
-  const extraSpins = (5 + Math.floor(Math.random() * 4)) * 2 * Math.PI;
-  const totalRotation = neededRotation - extraSpins;
-  const finalAngle = totalRotation % (2 * Math.PI);
+  // Calculate target angle so pointer (top = -π/2) lands on winner segment center
+  const targetSegCenter = winner.idx * arc + arc / 2;
+  const pointerAngle = -Math.PI / 2;
+  const spins = 5 + Math.random() * 3; // 5-8 full rotations
+  const totalRotation = spins * 2 * Math.PI + ((pointerAngle - targetSegCenter - wheelCurrentAngle + 4 * Math.PI) % (2 * Math.PI));
+  const finalAngle = wheelCurrentAngle + totalRotation;
 
   const duration = 4000;
   const start = performance.now();
+  const startAngle = wheelCurrentAngle;
 
   function animate(now) {
     const elapsed = now - start;
     const progress = Math.min(elapsed / duration, 1);
     const ease = 1 - Math.pow(1 - progress, 4);
-    wheelCurrentAngle = totalRotation * ease;
+    wheelCurrentAngle = startAngle + totalRotation * ease;
     drawWheel();
     if (progress < 1) {
       requestAnimationFrame(animate);
     } else {
-      wheelCurrentAngle = finalAngle;
+      wheelCurrentAngle = finalAngle % (2 * Math.PI);
       drawWheel(winner.idx);
       wheelSpinning = false;
       applyWinResult(winner);
-      // Reset wheel back to angle 0 after 3 seconds
-      setTimeout(() => {
-        wheelCurrentAngle = 0;
-        drawWheel();
-        document.getElementById('wheel-result-box').style.display = 'none';
-      }, 3000);
     }
   }
   requestAnimationFrame(animate);
@@ -2562,7 +2528,7 @@ async function applyWinResult(prize) {
       note: 'Wheel of Luck win', date: new Date().toLocaleString(), status: 'completed'
     });
     currentUser.balance = newBal;
-    updateBalanceUI();
+    updateUI();
     msg = `🎉 You won ${prize.label}! Added to your balance.`;
     resultBox.style.background = '#22c55e22';
     resultBox.style.color = '#16a34a';
