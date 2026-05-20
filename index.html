@@ -2393,19 +2393,38 @@ async function initWheel() {
   const prizesSnap = await db.ref('spinSettings/prizes').once('value');
   wheelPrizes = prizesSnap.val() ? prizesSnap.val() : DEFAULT_PRIZES;
 
-  // Daily reset check
   const today = new Date().toDateString();
-  const spinSnap = await db.ref(`users/${safeKey(currentUser.username)}/spinData`).once('value');
-  let spinData = spinSnap.val() || {count:0, date:'', earned:0};
+  const userKey = safeKey(currentUser.username);
+  const spinSnap = await db.ref(`users/${userKey}/spinData`).once('value');
+  const spinData = spinSnap.val();
 
-  if (spinData.date !== today) {
-    // New day — recalculate from downlines
+  if (!spinData || spinData.date !== today) {
+    // New day or no record — wipe everything and calculate fresh
+    await db.ref(`users/${userKey}/spinData`).remove();
     const earned = await calcDailySpins();
-    spinData = {count: earned, date: today, earned};
-    await db.ref(`users/${safeKey(currentUser.username)}/spinData`).set(spinData);
+    // earned = 0 if not enough qualifying referrals — no free chances ever
+    if (earned > 0) {
+      await db.ref(`users/${userKey}/spinData`).set({count: earned, date: today, earned});
+      wheelSpinCount = earned;
+    } else {
+      wheelSpinCount = 0;
+    }
+  } else {
+    // Same day — use remaining count only (don't re-award)
+    // But check if qualifying count went up since last check
+    const earned = await calcDailySpins();
+    if (earned > (spinData.earned || 0)) {
+      // User earned more spins today — add the difference only
+      const extra = earned - (spinData.earned || 0);
+      const newCount = (spinData.count || 0) + extra;
+      await db.ref(`users/${userKey}/spinData`).set({count: newCount, date: today, earned});
+      wheelSpinCount = newCount;
+    } else {
+      // No change — use whatever is left
+      wheelSpinCount = spinData.count || 0;
+    }
   }
 
-  wheelSpinCount = spinData.count || 0;
   updateSpinUI();
   drawWheel();
 }
