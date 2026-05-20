@@ -2485,13 +2485,18 @@ async function doSpin() {
   if (!unlocked.length) { wheelSpinning = false; updateSpinUI(); return; }
   const winner = unlocked[Math.floor(Math.random() * unlocked.length)];
   const total = wheelPrizes.length;
-  const arc = (2 * Math.PI) / total;
 
-  // Calculate target angle so pointer (top = -π/2) lands on winner segment center
-  const targetSegCenter = winner.idx * arc + arc / 2;
-  const pointerAngle = -Math.PI / 2;
-  const spins = 5 + Math.random() * 3; // 5-8 full rotations
-  const totalRotation = spins * 2 * Math.PI + ((pointerAngle - targetSegCenter - wheelCurrentAngle + 4 * Math.PI) % (2 * Math.PI));
+  // Calculate exact rotation so pointer (fixed at top = -π/2) lands on winner segment center
+  const arc = (2 * Math.PI) / total;
+  const winnerSegCenter = winner.idx * arc + arc / 2;
+  // How much we need to rotate so winnerSegCenter aligns with top (-π/2)
+  let neededRotation = (-Math.PI / 2) - wheelCurrentAngle - winnerSegCenter;
+  // Normalize to negative (wheel spins forward/clockwise)
+  neededRotation = neededRotation % (2 * Math.PI);
+  if (neededRotation > 0) neededRotation -= 2 * Math.PI;
+  // Add full spins (5-8) to make animation look dramatic
+  const extraSpins = (5 + Math.floor(Math.random() * 4)) * 2 * Math.PI;
+  const totalRotation = neededRotation - extraSpins;
   const finalAngle = wheelCurrentAngle + totalRotation;
 
   const duration = 4000;
