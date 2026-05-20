@@ -331,7 +331,7 @@ tbody td{padding:13px 16px;font-size:13px;vertical-align:middle;}
   </div>
   <div class="main-content">
     <div class="page active" id="pg-dashboard">
-      <div class="page-title">Dashboard</div>
+      <div class="page-title">Dashboard <button onclick="refreshUsersData()" style="font-size:12px;padding:5px 12px;border:1px solid var(--accent);border-radius:8px;background:none;color:var(--accent);cursor:pointer;font-weight:700;margin-left:10px;">🔄 Refresh</button></div>
       <div class="page-sub">Real-time platform overview</div>
       <div class="stats-row">
         <div class="stat-card"><div class="stat-card-label">Total Users</div><div class="stat-card-val green" id="d-total-users">—</div></div>
@@ -885,20 +885,54 @@ function adminLogout(){
 }
 
 function startRealtimeListeners(){
-  db.ref('users').on('value', snap=>{ allUsers = snap.val()||{}; cleanupExpiredAdminTransactions(); renderDashboard(); renderUsersTable(); renderTube(); });
-  db.ref('settings').on('value', snap=>{ if(snap.exists()) allSettings=snap.val(); loadSettingsUI(); renderDashboard(); });
-  db.ref('adminTransactions').on('value', snap=>{ allAdminTransactions = snap.val()||{}; renderTransactions(); });
-  startPendingWithdrawalsListener();
+  // Load users once - not persistent listener
+  db.ref('users').once('value', snap=>{ 
+    allUsers = snap.val()||{}; 
+    cleanupExpiredAdminTransactions(); 
+    renderDashboard(); 
+    renderUsersTable(); 
+    renderTube(); 
+  });
+  // Settings - keep listener but settings data is tiny
+  db.ref('settings').once('value', snap=>{ 
+    if(snap.exists()) allSettings=snap.val(); 
+    loadSettingsUI(); 
+    renderDashboard(); 
+  });
+  // Admin transactions - load once
+  db.ref('adminTransactions').once('value', snap=>{ 
+    allAdminTransactions = snap.val()||{}; 
+  });
+  // Withdrawals badge - keep lightweight listener for badge only
+  db.ref('pendingWithdrawals').once('value', snap=>{ 
+    allWithdrawals = snap.val()||{}; 
+    updateWithdrawalsBadge(); 
+  });
+}
+
+// Refresh users data manually when needed
+function refreshUsersData(){
+  db.ref('users').once('value', snap=>{ 
+    allUsers = snap.val()||{}; 
+    renderDashboard(); 
+    renderUsersTable(); 
+    renderTube(); 
+    toast('✅ Data refreshed');
+  });
 }
 
 function showPage(id){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
-  document.getElementById(id).classList.add('active');
+  const pg = document.getElementById(id);
+  if(pg) pg.classList.add('active');
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
-  const map={'pg-dashboard':0,'pg-users':1,'pg-tube':2,'pg-transactions':3,'pg-withdrawals':4,'pg-admin-withdrawal':5,'pg-debit':6,'pg-sog':7,'pg-settings':8};
-  if(map[id]!==undefined) document.querySelectorAll('.nav-item')[map[id]].classList.add('active');
-  if(id==='pg-transactions'){ renderTransactions(); }
-  if(id==='pg-withdrawals') renderWithdrawalsTable();
+  const map={'pg-dashboard':0,'pg-users':1,'pg-tube':2,'pg-transactions':3,'pg-withdrawals':4,'pg-admin-withdrawal':5,'pg-debit':6,'pg-sog':7,'pg-announcements':8,'pg-spin':9,'pg-settings':10};
+  if(map[id]!==undefined && document.querySelectorAll('.nav-item')[map[id]]) document.querySelectorAll('.nav-item')[map[id]].classList.add('active');
+  if(id==='pg-transactions') renderTransactions();
+  if(id==='pg-withdrawals'){ startPendingWithdrawalsListener(); renderWithdrawalsTable(); }
+  if(id==='pg-announcements') loadAnnouncements();
+  if(id==='pg-spin') loadSpinPage();
+  if(id==='pg-admin-withdrawal') loadAdminWithdrawalHistory();
 }
 
 let sogTargetUser=null;
@@ -1164,7 +1198,14 @@ function renderTransactions(){
   }).join('');
 }
 
-function startPendingWithdrawalsListener(){ db.ref('pendingWithdrawals').on('value', snap=>{ allWithdrawals = snap.val()||{}; updateWithdrawalsBadge(); renderWithdrawalsStats(); renderWithdrawalsTable(); }); }
+function startPendingWithdrawalsListener(){ 
+  db.ref('pendingWithdrawals').once('value', snap=>{ 
+    allWithdrawals = snap.val()||{}; 
+    updateWithdrawalsBadge(); 
+    renderWithdrawalsStats(); 
+    renderWithdrawalsTable(); 
+  }); 
+}
 let allWithdrawals = {};
 function updateWithdrawalsBadge(){ const count=Object.values(allWithdrawals).filter(v=>v.status==='pending').length; const badge=document.getElementById('withdrawals-nav-badge'); if(!badge) return; if(count>0){ badge.textContent=count; badge.style.display='inline-flex'; } else { badge.style.display='none'; } }
 function renderWithdrawalsStats(){ const vals=Object.values(allWithdrawals); const pending=vals.filter(v=>v.status==='pending'); const approved=vals.filter(v=>v.status==='approved'); const pendingAmt=pending.reduce((s,v)=>s+(v.amount||0),0); const e1=document.getElementById('wd-stat-pending'); const e2=document.getElementById('wd-stat-approved'); const e3=document.getElementById('wd-stat-amount'); if(e1)e1.textContent=pending.length; if(e2)e2.textContent=approved.length; if(e3)e3.textContent=fmt(pendingAmt); }
