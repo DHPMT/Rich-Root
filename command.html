@@ -1062,7 +1062,7 @@ function openEditPhoneModal(username){ const u=allUsers[safeKey(username)]; if(!
 function closeEditPhoneModal(){ document.getElementById('edit-phone-modal').classList.remove('open'); }
 function saveEditPhone(){ const username=document.getElementById('edit-phone-username').value; const phone=document.getElementById('edit-phone-value').value.trim(); if(!phone){ toast('Please enter a valid phone number','#f87171'); return; } db.ref('users/'+safeKey(username)+'/phone').set(phone); closeEditPhoneModal(); toast('✅ Phone number updated for '+username); }
 
-function renderTube(){ const investors=Object.values(allUsers).filter(u=>(u.stake||0)>0); const grid=document.getElementById('tube-grid'); if(!investors.length){ grid.innerHTML='<div style="color:var(--muted);font-size:13px;padding:20px">No investors yet.</div>'; return; } grid.innerHTML=investors.map(u=>'<div class="tube-card"><div class="tube-avatar">🌱</div><div class="tube-name">'+u.username+'</div><div class="tube-amt">'+fmt(u.stake)+'</div></div>').join(''); }
+function renderTube(){ const investors=Object.values(allUsers).filter(u=>(u.stake||0)>0); const grid=document.getElementById('tube-grid'); if(!investors.length){ grid.innerHTML='<div style="color:var(--muted);font-size:13px;padding:20px">No investors yet.</div>'; return; } grid.innerHTML=investors.map(u=>'<div class="tube-card"><div class="tube-avatar">🌱</div><div class="tube-name">'+u.username+'</div><div class="tube-amt">'+fmt(u.stake)+'</div><div style="font-size:10px;color:var(--muted);margin-top:4px;font-family:\'JetBrains Mono\',monospace;">Bal: '+fmt(u.balance||0)+'</div></div>').join(''); }
 
 function filterTx(type){ txFilter=type; renderTransactions(); }
 
