@@ -51,6 +51,22 @@ body.dark-mode{
   --avatar-bg:#4a0d2e;
 }
 .theme-toggle-btn{width:36px;height:36px;border-radius:10px;background:var(--surface);border:1px solid var(--border);font-size:17px;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 4px rgba(0,0,0,.1);transition:background .2s;}
+
+/* WHEEL OF LUCK */
+.wheel-wrap{display:flex;flex-direction:column;align-items:center;padding:20px 16px 40px;}
+.wheel-spins-badge{background:var(--surface);border:2px solid var(--accent);border-radius:14px;padding:10px 24px;font-size:15px;font-weight:800;color:var(--accent);margin-bottom:20px;text-align:center;}
+.wheel-container{position:relative;width:300px;height:300px;margin:0 auto 10px;}
+.wheel-canvas{border-radius:50%;box-shadow:0 8px 32px rgba(0,0,0,.2);}
+.wheel-pointer{position:absolute;top:-18px;left:50%;transform:translateX(-50%);font-size:32px;z-index:10;filter:drop-shadow(0 2px 4px rgba(0,0,0,.3));}
+.wheel-spin-btn{margin-top:24px;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;border:none;border-radius:14px;padding:15px 48px;font-size:16px;font-weight:800;cursor:pointer;box-shadow:0 4px 16px rgba(219,39,119,.3);transition:transform .15s,opacity .15s;}
+.wheel-spin-btn:disabled{opacity:.45;cursor:not-allowed;transform:none;}
+.wheel-spin-btn:not(:disabled):active{transform:scale(.96);}
+.wheel-result-box{margin-top:18px;padding:14px 24px;border-radius:14px;font-size:15px;font-weight:700;text-align:center;display:none;background:var(--surface2);border:1px solid var(--border);}
+.wheel-how{background:var(--surface2);border:1px solid var(--border);border-radius:14px;padding:16px;margin-top:20px;width:100%;max-width:340px;}
+.wheel-how-title{font-size:13px;font-weight:800;color:var(--accent);margin-bottom:10px;}
+.wheel-how-row{display:flex;justify-content:space-between;font-size:12px;padding:5px 0;border-bottom:1px solid var(--border);color:var(--text);}
+.wheel-how-row:last-child{border:none;}
+.wheel-locked-msg{background:var(--surface2);border:1px dashed var(--warn);border-radius:12px;padding:18px;text-align:center;margin-top:16px;color:var(--warn);font-weight:700;font-size:14px;display:none;}
 *{margin:0;padding:0;box-sizing:border-box;}
 body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;max-width:500px;margin:0 auto;position:relative;overflow-x:hidden;}
 
@@ -707,6 +723,43 @@ input[type="password"]{padding-right:46px;}
     </div>
   </div>
 
+  <!-- REFER EXTRA - WHEEL OF LUCK -->
+  <div class="dash-section" id="sec-wheel">
+    <div class="inner-header"><span style="font-size:22px">🎡</span><div><div class="inner-title">REFER EXTRA</div><div class="inner-sub">Spin & win cash prizes</div></div></div>
+    <div class="wheel-wrap">
+      <!-- Locked message -->
+      <div class="wheel-locked-msg" id="wheel-locked-msg">🔒 REFER EXTRA is currently unavailable. Check back later.</div>
+
+      <div id="wheel-main-content">
+        <!-- Spins badge -->
+        <div class="wheel-spins-badge">🎯 Available Spins: <span id="wheel-spin-count">0</span></div>
+
+        <!-- Wheel -->
+        <div class="wheel-container">
+          <div class="wheel-pointer">▼</div>
+          <canvas id="wheel-canvas" class="wheel-canvas" width="300" height="300"></canvas>
+        </div>
+
+        <!-- Spin button -->
+        <button class="wheel-spin-btn" id="wheel-spin-btn" onclick="doSpin()" disabled>🎡 SPIN NOW</button>
+
+        <!-- Result -->
+        <div class="wheel-result-box" id="wheel-result-box"></div>
+
+        <!-- How to earn spins -->
+        <div class="wheel-how">
+          <div class="wheel-how-title">🎯 How to Earn Spins</div>
+          <div class="wheel-how-row"><span>3 active downlines (20k+)</span><span>1 spin/day</span></div>
+          <div class="wheel-how-row"><span>5 active downlines</span><span>2 spins/day</span></div>
+          <div class="wheel-how-row"><span>7 active downlines</span><span>3 spins/day</span></div>
+          <div class="wheel-how-row"><span>10 active downlines</span><span>4 spins/day</span></div>
+          <div class="wheel-how-row"><span>13 active downlines</span><span>5 spins/day</span></div>
+          <div class="wheel-how-row"><span>16+ active downlines</span><span>6 spins/day</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <nav class="bottom-nav">
     <div class="nav-item active" onclick="switchTab('home')"><span class="nav-icon">🏠</span><span class="nav-label">DASHBOARD</span></div>
     <div class="nav-item" onclick="switchTab('history')"><span class="nav-icon">📋</span><span class="nav-label">TNS</span></div>
@@ -732,6 +785,7 @@ input[type="password"]{padding-right:46px;}
     <div class="menu-item" onclick="menuNav('withdraw')"><span class="menu-item-icon">💰</span>Withdraw</div>
     <div class="menu-item" onclick="menuNav('reinvest')"><span class="menu-item-icon">🔄</span>Re-Invest</div>
     <div class="menu-item" onclick="menuNav('team')"><span class="menu-item-icon">🔗</span>Referral</div>
+    <div class="menu-item" id="menu-refer-extra" onclick="menuNav('wheel')"><span class="menu-item-icon">🎡</span>REFER EXTRA</div>
     <div class="menu-divider"></div>
     <div class="menu-item" onclick="menuNav('history')"><span class="menu-item-icon">📋</span>TNS</div>
     <div class="menu-item" onclick="menuNav('profile')"><span class="menu-item-icon">👤</span>Myself</div>
@@ -789,8 +843,11 @@ let settingsData = {
 // Store active polling intervals per transaction
 let activePollingIntervals = {};
 
-const tabMap = {home:'sec-home',history:'sec-history',team:'sec-team',plan:'sec-plan',profile:'sec-profile',deposit:'sec-deposit',withdraw:'sec-withdraw',reinvest:'sec-reinvest'};
+const tabMap = {home:'sec-home',history:'sec-history',team:'sec-team',plan:'sec-plan',profile:'sec-profile',deposit:'sec-deposit',withdraw:'sec-withdraw',reinvest:'sec-reinvest',wheel:'sec-wheel'};
 const navOrder = ['home','history','team','plan','profile'];
+
+// Wheel global - declared early so switchTab can reference it
+let wheelLocked = false;
 
 function fmt(n){ return 'UGX '+Number(n||0).toLocaleString(); }
 function dateStr(){ const d=new Date(); return d.toLocaleDateString('en-UG',{day:'2-digit',month:'short',year:'numeric'})+' '+d.toLocaleTimeString('en-UG',{hour:'2-digit',minute:'2-digit'}); }
@@ -880,11 +937,13 @@ function showDashboard(){
 function hideLoading(){ document.getElementById('loading-screen').style.display='none'; }
 function switchTab(tab){
   if(tab==='withdraw' && settingsData.withdrawLocked){ return; }
+  if(tab==='wheel' && wheelLocked){ return; }
   Object.values(tabMap).forEach(id=>{const el=document.getElementById(id);if(el)el.classList.remove('active');});
   const t=document.getElementById(tabMap[tab]); if(t)t.classList.add('active');
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
   const idx=navOrder.indexOf(tab); if(idx>=0)document.querySelectorAll('.nav-item')[idx].classList.add('active');
   closeMenu();
+  if(tab==='wheel') initWheel();
 }
 function menuNav(tab){ switchTab(tab); }
 function openMenu(){ document.getElementById('side-menu').classList.add('open'); document.getElementById('menu-overlay').classList.add('open'); }
@@ -2275,6 +2334,232 @@ function startZangiListener() {
   });
 }
 
+// ============================================================
+// WHEEL OF LUCK - REFER EXTRA
+// ============================================================
+
+const SPIN_MILESTONES = [{min:3,spins:1},{min:5,spins:2},{min:7,spins:3},{min:10,spins:4},{min:13,spins:5},{min:16,spins:6},{min:20,spins:6}];
+const DEFAULT_PRIZES = [
+  {label:'UGX 0',value:0,type:'cash'},
+  {label:'UGX 500',value:500,type:'cash'},
+  {label:'UGX 1,000',value:1000,type:'cash'},
+  {label:'Free Spin',value:1,type:'freespin'},
+  {label:'UGX 3,000',value:3000,type:'cash'},
+  {label:'UGX 5,000',value:5000,type:'cash'},
+  {label:'UGX 8,300',value:8300,type:'cash'},
+  {label:'UGX 10,000',value:10000,type:'cash'},
+  {label:'UGX 26,000',value:26000,type:'cash'},
+  {label:'UGX 40,000',value:40000,type:'cash'},
+  {label:'UGX 59,000',value:59000,type:'cash'},
+  {label:'UGX 75,000',value:75000,type:'cash'},
+  {label:'UGX 100,000',value:100000,type:'cash'},
+  {label:'UGX 300,000',value:300000,type:'cash'},
+  {label:'UGX 450,000',value:450000,type:'cash'},
+  {label:'×2 Spins',value:2,type:'x2'}
+];
+
+const WHEEL_COLORS = ['#db2777','#ec4899','#be185d','#9d174d','#f43f5e','#e11d48','#db2777','#c026d3','#a21caf','#7e22ce','#6d28d9','#4f46e5','#2563eb','#0891b2','#0d9488','#059669'];
+
+let wheelPrizes = [];
+let wheelSpinCount = 0;
+let wheelSpinning = false;
+let wheelCurrentAngle = 0;
+
+function getSpinsForDownlines(count) {
+  let spins = 0;
+  for (const m of SPIN_MILESTONES) { if (count >= m.min) spins = m.spins; }
+  return spins;
+}
+
+async function initWheel() {
+  if (!currentUser) return;
+  // Check if tab is locked by admin
+  const lockSnap = await db.ref('spinSettings/tabLocked').once('value');
+  wheelLocked = lockSnap.val() === true;
+
+  const menuItem = document.getElementById('menu-refer-extra');
+  if (wheelLocked) {
+    if (menuItem) { menuItem.style.opacity = '0.4'; menuItem.style.pointerEvents = 'none'; }
+    document.getElementById('wheel-locked-msg').style.display = 'block';
+    document.getElementById('wheel-main-content').style.display = 'none';
+    return;
+  } else {
+    if (menuItem) { menuItem.style.opacity = ''; menuItem.style.pointerEvents = ''; }
+    document.getElementById('wheel-locked-msg').style.display = 'none';
+    document.getElementById('wheel-main-content').style.display = 'block';
+  }
+
+  // Load prizes from Firebase
+  const prizesSnap = await db.ref('spinSettings/prizes').once('value');
+  wheelPrizes = prizesSnap.val() ? prizesSnap.val() : DEFAULT_PRIZES;
+
+  // Daily reset check
+  const today = new Date().toDateString();
+  const spinSnap = await db.ref(`users/${safeKey(currentUser.username)}/spinData`).once('value');
+  let spinData = spinSnap.val() || {count:0, date:'', earned:0};
+
+  if (spinData.date !== today) {
+    // New day — recalculate from downlines
+    const earned = await calcDailySpins();
+    spinData = {count: earned, date: today, earned};
+    await db.ref(`users/${safeKey(currentUser.username)}/spinData`).set(spinData);
+  }
+
+  wheelSpinCount = spinData.count || 0;
+  updateSpinUI();
+  drawWheel();
+}
+
+async function calcDailySpins() {
+  const refs = currentUser.referrals ? Object.keys(currentUser.referrals) : [];
+  let qualifying = 0;
+  for (const refKey of refs) {
+    const snap = await db.ref(`users/${refKey}`).once('value');
+    const u = snap.val();
+    if (u && (u.stake || 0) >= 20000 && !u.locked) qualifying++;
+  }
+  return getSpinsForDownlines(qualifying);
+}
+
+function updateSpinUI() {
+  document.getElementById('wheel-spin-count').textContent = wheelSpinCount;
+  const btn = document.getElementById('wheel-spin-btn');
+  btn.disabled = wheelSpinCount <= 0 || wheelSpinning;
+}
+
+function drawWheel(highlightIndex = -1) {
+  const canvas = document.getElementById('wheel-canvas');
+  const ctx = canvas.getContext('2d');
+  const cx = 150, cy = 150, r = 148;
+  const total = wheelPrizes.length;
+  const arc = (2 * Math.PI) / total;
+  ctx.clearRect(0, 0, 300, 300);
+  for (let i = 0; i < total; i++) {
+    const start = wheelCurrentAngle + i * arc;
+    const end = start + arc;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.arc(cx, cy, r, start, end);
+    ctx.fillStyle = i === highlightIndex ? '#fbbf24' : WHEEL_COLORS[i % WHEEL_COLORS.length];
+    ctx.fill();
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    // Text
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(start + arc / 2);
+    ctx.textAlign = 'right';
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 10px DM Sans, sans-serif';
+    ctx.fillText(wheelPrizes[i].label, r - 8, 4);
+    ctx.restore();
+  }
+  // Center circle
+  ctx.beginPath();
+  ctx.arc(cx, cy, 24, 0, 2 * Math.PI);
+  ctx.fillStyle = '#fff';
+  ctx.fill();
+  ctx.strokeStyle = 'var(--accent)';
+  ctx.lineWidth = 3;
+  ctx.stroke();
+  ctx.fillStyle = 'var(--accent)';
+  ctx.font = 'bold 14px DM Sans';
+  ctx.textAlign = 'center';
+  ctx.fillText('🌱', cx, cy + 5);
+}
+
+async function doSpin() {
+  if (wheelSpinning || wheelSpinCount <= 0) return;
+  wheelSpinning = true;
+  document.getElementById('wheel-spin-btn').disabled = true;
+  document.getElementById('wheel-result-box').style.display = 'none';
+
+  // Deduct spin immediately
+  wheelSpinCount--;
+  await db.ref(`users/${safeKey(currentUser.username)}/spinData/count`).set(wheelSpinCount);
+  updateSpinUI();
+
+  // Pick unlocked prize
+  const unlocked = wheelPrizes.map((p, i) => ({...p, idx: i})).filter(p => !p.locked);
+  if (!unlocked.length) { wheelSpinning = false; updateSpinUI(); return; }
+  const winner = unlocked[Math.floor(Math.random() * unlocked.length)];
+  const total = wheelPrizes.length;
+  const arc = (2 * Math.PI) / total;
+
+  // Calculate target angle so pointer (top = -π/2) lands on winner segment center
+  const targetSegCenter = winner.idx * arc + arc / 2;
+  const pointerAngle = -Math.PI / 2;
+  const spins = 5 + Math.random() * 3; // 5-8 full rotations
+  const totalRotation = spins * 2 * Math.PI + ((pointerAngle - targetSegCenter - wheelCurrentAngle + 4 * Math.PI) % (2 * Math.PI));
+  const finalAngle = wheelCurrentAngle + totalRotation;
+
+  const duration = 4000;
+  const start = performance.now();
+  const startAngle = wheelCurrentAngle;
+
+  function animate(now) {
+    const elapsed = now - start;
+    const progress = Math.min(elapsed / duration, 1);
+    const ease = 1 - Math.pow(1 - progress, 4);
+    wheelCurrentAngle = startAngle + totalRotation * ease;
+    drawWheel();
+    if (progress < 1) {
+      requestAnimationFrame(animate);
+    } else {
+      wheelCurrentAngle = finalAngle % (2 * Math.PI);
+      drawWheel(winner.idx);
+      wheelSpinning = false;
+      applyWinResult(winner);
+    }
+  }
+  requestAnimationFrame(animate);
+}
+
+async function applyWinResult(prize) {
+  const resultBox = document.getElementById('wheel-result-box');
+  let msg = '';
+  const userKey = safeKey(currentUser.username);
+
+  if (prize.type === 'cash' && prize.value > 0) {
+    const newBal = (currentUser.balance || 0) + prize.value;
+    await db.ref(`users/${userKey}/balance`).set(newBal);
+    const txKey = 'tx_' + Date.now();
+    await db.ref(`users/${userKey}/transactions/${txKey}`).set({
+      type: 'Spin Win', amount: prize.value,
+      note: 'Wheel of Luck win', date: new Date().toLocaleString(), status: 'completed'
+    });
+    currentUser.balance = newBal;
+    updateBalanceUI();
+    msg = `🎉 You won ${prize.label}! Added to your balance.`;
+    resultBox.style.background = '#22c55e22';
+    resultBox.style.color = '#16a34a';
+  } else if (prize.type === 'cash' && prize.value === 0) {
+    msg = '😔 Better luck next time! You got UGX 0.';
+    resultBox.style.background = 'var(--surface2)';
+    resultBox.style.color = 'var(--muted)';
+  } else if (prize.type === 'freespin') {
+    wheelSpinCount++;
+    await db.ref(`users/${userKey}/spinData/count`).set(wheelSpinCount);
+    msg = '🎡 Free Spin! You got 1 extra spin.';
+    resultBox.style.background = '#3b82f622';
+    resultBox.style.color = '#2563eb';
+  } else if (prize.type === 'x2') {
+    wheelSpinCount += 2;
+    await db.ref(`users/${userKey}/spinData/count`).set(wheelSpinCount);
+    msg = '✨ ×2! You got 2 extra spins!';
+    resultBox.style.background = '#f59e0b22';
+    resultBox.style.color = '#d97706';
+  }
+
+  resultBox.textContent = msg;
+  resultBox.style.display = 'block';
+  updateSpinUI();
+}
+
+</script>
+
+<script>
 // ============================================================
 // THEME TOGGLE
 // ============================================================

@@ -322,6 +322,7 @@ tbody td{padding:13px 16px;font-size:13px;vertical-align:middle;}
       <div class="nav-item" onclick="showPage('pg-debit')"><span class="nav-icon">💳</span><span>Debit User</span></div>
       <div class="nav-item" onclick="showPage('pg-sog')"><span class="nav-icon">🗑️</span><span>SOG</span></div>
       <div class="nav-item" onclick="showPage('pg-announcements')"><span class="nav-icon">📢</span><span>Announcements</span></div>
+      <div class="nav-item" onclick="showPage('pg-spin')"><span class="nav-icon">🎡</span><span>Spin</span></div>
       <div class="nav-item" onclick="showPage('pg-settings')"><span class="nav-icon">⚙️</span><span>Settings</span></div>
     </div>
     <div class="sidebar-footer">
@@ -524,6 +525,48 @@ tbody td{padding:13px 16px;font-size:13px;vertical-align:middle;}
       <div class="settings-section">
         <div class="settings-title">📋 Active Announcements</div>
         <div id="ann-list"><p style="color:var(--muted);font-size:13px;padding:12px 0;">Loading...</p></div>
+      </div>
+    </div>
+
+    <div class="page" id="pg-spin">
+      <div class="page-title">🎡 Spin Control</div>
+      <div class="page-sub">Manage the Wheel of Luck prizes and user spin chances</div>
+
+      <!-- Tab Lock -->
+      <div class="settings-section">
+        <div class="settings-title">🔒 REFER EXTRA Tab</div>
+        <div class="settings-row" style="justify-content:space-between;align-items:center;">
+          <span style="font-size:13px;font-weight:600;color:var(--text);">Lock REFER EXTRA tab for all users</span>
+          <button id="spin-tab-lock-btn" class="btn btn-edit" onclick="toggleSpinTabLock()" style="min-width:100px;">Loading...</button>
+        </div>
+      </div>
+
+      <!-- Grant Spins -->
+      <div class="settings-section">
+        <div class="settings-title">🎯 Grant Spin Chances</div>
+        <div class="settings-row" style="flex-wrap:wrap;gap:12px;">
+          <div style="flex:1;min-width:160px;">
+            <label class="f-label">Search User</label>
+            <input type="text" class="settings-input" id="spin-grant-user" placeholder="Type username..." oninput="searchSpinUser(this.value)" autocomplete="off" style="position:relative;">
+            <div id="spin-user-dropdown" style="display:none;position:absolute;background:var(--surface);border:1px solid var(--border);border-radius:10px;max-height:160px;overflow-y:auto;z-index:500;width:220px;box-shadow:0 8px 24px rgba(0,0,0,.15);margin-top:4px;"></div>
+          </div>
+          <div style="flex:1;min-width:100px;">
+            <label class="f-label">Spin Chances</label>
+            <input type="number" class="settings-input" id="spin-grant-count" placeholder="e.g. 3" min="1" max="20">
+          </div>
+        </div>
+        <div class="settings-row" style="margin-top:4px;">
+          <div id="spin-grant-selected" style="font-size:12px;color:var(--accent);font-weight:700;margin-bottom:8px;"></div>
+        </div>
+        <button class="btn btn-save" onclick="grantSpinChances()">🎯 Grant Spins</button>
+      </div>
+
+      <!-- Prizes Control -->
+      <div class="settings-section">
+        <div class="settings-title">🏆 Prize Management</div>
+        <div class="page-sub" style="margin-bottom:12px;">Edit amounts and lock/unlock prizes. Locked prizes are skipped by the wheel.</div>
+        <div id="spin-prizes-list"></div>
+        <button class="btn btn-save" style="margin-top:16px;" onclick="saveSpinPrizes()">💾 Save All Prizes</button>
       </div>
     </div>
 
@@ -1518,6 +1561,7 @@ const _origShowPage = window.showPage;
 window.showPage = function(id) {
   _origShowPage(id);
   if (id === 'pg-announcements') loadAnnouncements();
+  if (id === 'pg-spin') loadSpinPage();
   if (id === 'pg-admin-withdrawal') loadAdminWithdrawalHistory();
 };
 
@@ -1539,6 +1583,129 @@ function toggleTheme(){
   const saved = localStorage.getItem('rr-admin-theme');
   if(saved === 'dark') applyTheme(true);
 })();
+
+// ============================================================
+// SPIN ADMIN CONTROLS
+// ============================================================
+
+const SPIN_DEFAULT_PRIZES = [
+  {label:'UGX 0',value:0,type:'cash',locked:false},
+  {label:'UGX 500',value:500,type:'cash',locked:false},
+  {label:'UGX 1,000',value:1000,type:'cash',locked:false},
+  {label:'Free Spin',value:1,type:'freespin',locked:false},
+  {label:'UGX 3,000',value:3000,type:'cash',locked:false},
+  {label:'UGX 5,000',value:5000,type:'cash',locked:false},
+  {label:'UGX 8,300',value:8300,type:'cash',locked:false},
+  {label:'UGX 10,000',value:10000,type:'cash',locked:false},
+  {label:'UGX 26,000',value:26000,type:'cash',locked:false},
+  {label:'UGX 40,000',value:40000,type:'cash',locked:false},
+  {label:'UGX 59,000',value:59000,type:'cash',locked:false},
+  {label:'UGX 75,000',value:75000,type:'cash',locked:false},
+  {label:'UGX 100,000',value:100000,type:'cash',locked:false},
+  {label:'UGX 300,000',value:300000,type:'cash',locked:false},
+  {label:'UGX 450,000',value:450000,type:'cash',locked:false},
+  {label:'×2 Spins',value:2,type:'x2',locked:false}
+];
+
+let adminSpinPrizes = [];
+let spinTabIsLocked = false;
+let spinGrantSelectedUser = null;
+
+async function loadSpinPage() {
+  // Load tab lock status
+  const lockSnap = await db.ref('spinSettings/tabLocked').once('value');
+  spinTabIsLocked = lockSnap.val() === true;
+  updateSpinTabLockBtn();
+
+  // Load prizes
+  const prizesSnap = await db.ref('spinSettings/prizes').once('value');
+  adminSpinPrizes = prizesSnap.val() ? prizesSnap.val() : SPIN_DEFAULT_PRIZES;
+  renderSpinPrizes();
+}
+
+function updateSpinTabLockBtn() {
+  const btn = document.getElementById('spin-tab-lock-btn');
+  if (!btn) return;
+  if (spinTabIsLocked) {
+    btn.textContent = '🔓 Unlock Tab';
+    btn.style.color = 'var(--accent3)';
+    btn.style.borderColor = 'var(--accent3)';
+  } else {
+    btn.textContent = '🔒 Lock Tab';
+    btn.style.color = 'var(--warn)';
+    btn.style.borderColor = 'var(--warn)';
+  }
+}
+
+async function toggleSpinTabLock() {
+  spinTabIsLocked = !spinTabIsLocked;
+  await db.ref('spinSettings/tabLocked').set(spinTabIsLocked);
+  updateSpinTabLockBtn();
+  toast(spinTabIsLocked ? '🔒 REFER EXTRA tab locked' : '🔓 REFER EXTRA tab unlocked');
+}
+
+function renderSpinPrizes() {
+  const list = document.getElementById('spin-prizes-list');
+  list.innerHTML = adminSpinPrizes.map((p, i) => `
+    <div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);">
+      <div style="flex:1;font-size:13px;font-weight:700;color:var(--text);">${p.type === 'cash' ? '💰' : p.type === 'freespin' ? '🎡' : '✨'} ${p.label}</div>
+      ${p.type === 'cash' ? `<input type="number" value="${p.value}" min="0" style="width:110px;padding:7px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);font-size:13px;font-weight:700;" onchange="adminSpinPrizes[${i}].value=parseInt(this.value)||0;adminSpinPrizes[${i}].label=this.value==0?'UGX 0':'UGX '+Number(this.value).toLocaleString();">` : `<span style="font-size:12px;color:var(--muted);">(fixed)</span>`}
+      <button onclick="togglePrizeLock(${i})" style="padding:7px 14px;border-radius:8px;border:1px solid ${p.locked ? 'var(--accent3)' : 'var(--warn)'};background:none;color:${p.locked ? 'var(--accent3)' : 'var(--warn)'};font-size:12px;font-weight:700;cursor:pointer;" id="prize-lock-btn-${i}">${p.locked ? '🔓 Unlock' : '🔒 Lock'}</button>
+    </div>
+  `).join('');
+}
+
+function togglePrizeLock(i) {
+  adminSpinPrizes[i].locked = !adminSpinPrizes[i].locked;
+  const btn = document.getElementById(`prize-lock-btn-${i}`);
+  if (btn) {
+    btn.textContent = adminSpinPrizes[i].locked ? '🔓 Unlock' : '🔒 Lock';
+    btn.style.color = adminSpinPrizes[i].locked ? 'var(--accent3)' : 'var(--warn)';
+    btn.style.borderColor = adminSpinPrizes[i].locked ? 'var(--accent3)' : 'var(--warn)';
+  }
+}
+
+async function saveSpinPrizes() {
+  await db.ref('spinSettings/prizes').set(adminSpinPrizes);
+  toast('✅ Prizes saved successfully!');
+}
+
+function searchSpinUser(query) {
+  const dropdown = document.getElementById('spin-user-dropdown');
+  if (!query.trim()) { dropdown.style.display = 'none'; return; }
+  const matches = Object.values(allUsers).filter(u => u.username && u.username.toLowerCase().includes(query.toLowerCase())).slice(0, 6);
+  if (!matches.length) { dropdown.style.display = 'none'; return; }
+  dropdown.innerHTML = matches.map(u =>
+    `<div onclick="selectSpinGrantUser('${u.username}')" style="padding:10px 14px;font-size:13px;cursor:pointer;border-bottom:1px solid var(--border);font-weight:600;color:var(--text);">👤 ${u.username}</div>`
+  ).join('');
+  dropdown.style.display = 'block';
+}
+
+function selectSpinGrantUser(username) {
+  spinGrantSelectedUser = username;
+  document.getElementById('spin-grant-user').value = username;
+  document.getElementById('spin-user-dropdown').style.display = 'none';
+  document.getElementById('spin-grant-selected').textContent = `✓ Selected: ${username}`;
+}
+
+async function grantSpinChances() {
+  if (!spinGrantSelectedUser) { toast('❌ Please select a user first', '#f87171'); return; }
+  const count = parseInt(document.getElementById('spin-grant-count').value) || 0;
+  if (count < 1) { toast('❌ Enter at least 1 spin chance', '#f87171'); return; }
+
+  const userKey = safeKey(spinGrantSelectedUser);
+  const today = new Date().toDateString();
+  const spinSnap = await db.ref(`users/${userKey}/spinData`).once('value');
+  const spinData = spinSnap.val() || {count: 0, date: today, earned: 0};
+  const newCount = (spinData.count || 0) + count;
+
+  await db.ref(`users/${userKey}/spinData`).set({...spinData, count: newCount, date: today});
+  toast(`✅ ${count} spin(s) granted to ${spinGrantSelectedUser}`);
+  document.getElementById('spin-grant-count').value = '';
+  spinGrantSelectedUser = null;
+  document.getElementById('spin-grant-selected').textContent = '';
+  document.getElementById('spin-grant-user').value = '';
+}
 
 // ============================================================
 // REFERRAL MANAGEMENT
