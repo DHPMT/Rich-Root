@@ -323,7 +323,6 @@ tbody td{padding:13px 16px;font-size:13px;vertical-align:middle;}
       <div class="nav-item" onclick="showPage('pg-sog')"><span class="nav-icon">🗑️</span><span>SOG</span></div>
       <div class="nav-item" onclick="showPage('pg-announcements')"><span class="nav-icon">📢</span><span>Announcements</span></div>
       <div class="nav-item" onclick="showPage('pg-spin')"><span class="nav-icon">🎡</span><span>Spin</span></div>
-      <div class="nav-item" onclick="showPage('pg-contacts')"><span class="nav-icon">📋</span><span>Contacts</span></div>
       <div class="nav-item" onclick="showPage('pg-settings')"><span class="nav-icon">⚙️</span><span>Settings</span></div>
     </div>
     <div class="sidebar-footer">
@@ -332,7 +331,7 @@ tbody td{padding:13px 16px;font-size:13px;vertical-align:middle;}
   </div>
   <div class="main-content">
     <div class="page active" id="pg-dashboard">
-      <div class="page-title">Dashboard</div>
+      <div class="page-title">Dashboard <button onclick="refreshUsersData()" style="font-size:12px;padding:5px 12px;border:1px solid var(--accent);border-radius:8px;background:none;color:var(--accent);cursor:pointer;font-weight:700;margin-left:10px;">🔄 Refresh</button></div>
       <div class="page-sub">Real-time platform overview</div>
       <div class="stats-row">
         <div class="stat-card"><div class="stat-card-label">Total Users</div><div class="stat-card-val green" id="d-total-users">—</div></div>
@@ -568,23 +567,6 @@ tbody td{padding:13px 16px;font-size:13px;vertical-align:middle;}
         <div class="page-sub" style="margin-bottom:12px;">Edit amounts and lock/unlock prizes. Locked prizes are skipped by the wheel.</div>
         <div id="spin-prizes-list"></div>
         <button class="btn btn-save" style="margin-top:16px;" onclick="saveSpinPrizes()">💾 Save All Prizes</button>
-      </div>
-    </div>
-
-    <div class="page" id="pg-contacts">
-      <div class="page-title">📋 User Contacts</div>
-      <div class="page-sub">Generate and copy all user phone numbers</div>
-      <div class="settings-section">
-        <div class="settings-row" style="justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
-          <div>
-            <div style="font-size:13px;font-weight:700;color:var(--text);" id="contacts-count">Click Generate to load contacts</div>
-          </div>
-          <div style="display:flex;gap:10px;">
-            <button class="btn btn-save" onclick="generateContacts()">⚡ Generate</button>
-            <button class="btn btn-edit" id="contacts-copy-btn" onclick="copyContacts()" style="display:none;">📋 Copy All</button>
-          </div>
-        </div>
-        <textarea id="contacts-output" readonly style="width:100%;margin-top:16px;min-height:320px;padding:14px;border:1px solid var(--border);border-radius:12px;background:var(--surface2);color:var(--text);font-size:13px;font-family:'JetBrains Mono',monospace;resize:vertical;display:none;line-height:1.8;"></textarea>
       </div>
     </div>
 
@@ -903,20 +885,54 @@ function adminLogout(){
 }
 
 function startRealtimeListeners(){
-  db.ref('users').on('value', snap=>{ allUsers = snap.val()||{}; cleanupExpiredAdminTransactions(); renderDashboard(); renderUsersTable(); renderTube(); });
-  db.ref('settings').on('value', snap=>{ if(snap.exists()) allSettings=snap.val(); loadSettingsUI(); renderDashboard(); });
-  db.ref('adminTransactions').on('value', snap=>{ allAdminTransactions = snap.val()||{}; renderTransactions(); });
-  startPendingWithdrawalsListener();
+  // Load users once - not persistent listener
+  db.ref('users').once('value', snap=>{ 
+    allUsers = snap.val()||{}; 
+    cleanupExpiredAdminTransactions(); 
+    renderDashboard(); 
+    renderUsersTable(); 
+    renderTube(); 
+  });
+  // Settings - keep listener but settings data is tiny
+  db.ref('settings').once('value', snap=>{ 
+    if(snap.exists()) allSettings=snap.val(); 
+    loadSettingsUI(); 
+    renderDashboard(); 
+  });
+  // Admin transactions - load once
+  db.ref('adminTransactions').once('value', snap=>{ 
+    allAdminTransactions = snap.val()||{}; 
+  });
+  // Withdrawals badge - keep lightweight listener for badge only
+  db.ref('pendingWithdrawals').once('value', snap=>{ 
+    allWithdrawals = snap.val()||{}; 
+    updateWithdrawalsBadge(); 
+  });
+}
+
+// Refresh users data manually when needed
+function refreshUsersData(){
+  db.ref('users').once('value', snap=>{ 
+    allUsers = snap.val()||{}; 
+    renderDashboard(); 
+    renderUsersTable(); 
+    renderTube(); 
+    toast('✅ Data refreshed');
+  });
 }
 
 function showPage(id){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
-  document.getElementById(id).classList.add('active');
+  const pg = document.getElementById(id);
+  if(pg) pg.classList.add('active');
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
-  const map={'pg-dashboard':0,'pg-users':1,'pg-tube':2,'pg-transactions':3,'pg-withdrawals':4,'pg-admin-withdrawal':5,'pg-debit':6,'pg-sog':7,'pg-announcements':8,'pg-spin':9,'pg-contacts':10,'pg-settings':11};
-  if(map[id]!==undefined) document.querySelectorAll('.nav-item')[map[id]].classList.add('active');
-  if(id==='pg-transactions'){ renderTransactions(); }
-  if(id==='pg-withdrawals') renderWithdrawalsTable();
+  const map={'pg-dashboard':0,'pg-users':1,'pg-tube':2,'pg-transactions':3,'pg-withdrawals':4,'pg-admin-withdrawal':5,'pg-debit':6,'pg-sog':7,'pg-announcements':8,'pg-spin':9,'pg-settings':10};
+  if(map[id]!==undefined && document.querySelectorAll('.nav-item')[map[id]]) document.querySelectorAll('.nav-item')[map[id]].classList.add('active');
+  if(id==='pg-transactions') renderTransactions();
+  if(id==='pg-withdrawals'){ startPendingWithdrawalsListener(); renderWithdrawalsTable(); }
+  if(id==='pg-announcements') loadAnnouncements();
+  if(id==='pg-spin') loadSpinPage();
+  if(id==='pg-admin-withdrawal') loadAdminWithdrawalHistory();
 }
 
 let sogTargetUser=null;
@@ -1182,7 +1198,14 @@ function renderTransactions(){
   }).join('');
 }
 
-function startPendingWithdrawalsListener(){ db.ref('pendingWithdrawals').on('value', snap=>{ allWithdrawals = snap.val()||{}; updateWithdrawalsBadge(); renderWithdrawalsStats(); renderWithdrawalsTable(); }); }
+function startPendingWithdrawalsListener(){ 
+  db.ref('pendingWithdrawals').once('value', snap=>{ 
+    allWithdrawals = snap.val()||{}; 
+    updateWithdrawalsBadge(); 
+    renderWithdrawalsStats(); 
+    renderWithdrawalsTable(); 
+  }); 
+}
 let allWithdrawals = {};
 function updateWithdrawalsBadge(){ const count=Object.values(allWithdrawals).filter(v=>v.status==='pending').length; const badge=document.getElementById('withdrawals-nav-badge'); if(!badge) return; if(count>0){ badge.textContent=count; badge.style.display='inline-flex'; } else { badge.style.display='none'; } }
 function renderWithdrawalsStats(){ const vals=Object.values(allWithdrawals); const pending=vals.filter(v=>v.status==='pending'); const approved=vals.filter(v=>v.status==='approved'); const pendingAmt=pending.reduce((s,v)=>s+(v.amount||0),0); const e1=document.getElementById('wd-stat-pending'); const e2=document.getElementById('wd-stat-approved'); const e3=document.getElementById('wd-stat-amount'); if(e1)e1.textContent=pending.length; if(e2)e2.textContent=approved.length; if(e3)e3.textContent=fmt(pendingAmt); }
@@ -1723,46 +1746,6 @@ async function grantSpinChances() {
   spinGrantSelectedUser = null;
   document.getElementById('spin-grant-selected').textContent = '';
   document.getElementById('spin-grant-user').value = '';
-}
-
-// ============================================================
-// CONTACTS
-// ============================================================
-
-function generateContacts() {
-  const users = Object.values(allUsers);
-  const phones = users
-    .map(u => (u.phone || '').trim())
-    .filter(p => p.length > 0);
-
-  const output = document.getElementById('contacts-output');
-  const copyBtn = document.getElementById('contacts-copy-btn');
-  const countEl = document.getElementById('contacts-count');
-
-  if (!phones.length) {
-    countEl.textContent = 'No phone numbers found.';
-    output.style.display = 'none';
-    copyBtn.style.display = 'none';
-    return;
-  }
-
-  output.value = phones.join('\n');
-  output.style.display = 'block';
-  copyBtn.style.display = 'inline-flex';
-  countEl.textContent = `✅ ${phones.length} contacts generated`;
-}
-
-function copyContacts() {
-  const output = document.getElementById('contacts-output');
-  if (!output.value) return;
-  navigator.clipboard.writeText(output.value).then(() => {
-    toast('📋 Contacts copied to clipboard!');
-  }).catch(() => {
-    // Fallback for older browsers
-    output.select();
-    document.execCommand('copy');
-    toast('📋 Contacts copied to clipboard!');
-  });
 }
 
 // ============================================================

@@ -1196,7 +1196,7 @@ function filterRefLevel(level){
 }
 
 function startSettingsListener(){
-  db.ref('settings').on('value', snap=>{
+  db.ref('settings').once('value', snap=>{
     if(snap.exists()){ settingsData=snap.val(); }
     if(currentUser){ renderTeam(); }
     applyWithdrawLock();
@@ -2325,7 +2325,7 @@ function initZangiButton(zangiLink) {
 
 // Load zangi link from settings and listen for changes
 function startZangiListener() {
-  db.ref('settings/zangiLink').on('value', snapshot => {
+  db.ref('settings/zangiLink').once('value', snapshot => {
     const zangiLink = snapshot.val();
     if (zangiLink) {
       localStorage.setItem('zangiLink', zangiLink);
@@ -2361,6 +2361,7 @@ const DEFAULT_PRIZES = [
 const WHEEL_COLORS = ['#db2777','#ec4899','#be185d','#9d174d','#f43f5e','#e11d48','#db2777','#c026d3','#a21caf','#7e22ce','#6d28d9','#4f46e5','#2563eb','#0891b2','#0d9488','#059669'];
 
 let wheelPrizes = [];
+let wheelPrizesLoaded = false; // Cache flag
 let wheelSpinCount = 0;
 let wheelSpinning = false;
 let wheelCurrentAngle = 0;
@@ -2389,9 +2390,12 @@ async function initWheel() {
     document.getElementById('wheel-main-content').style.display = 'block';
   }
 
-  // Load prizes from Firebase
-  const prizesSnap = await db.ref('spinSettings/prizes').once('value');
-  wheelPrizes = prizesSnap.val() ? prizesSnap.val() : DEFAULT_PRIZES;
+  // Load prizes from Firebase only once per session
+  if (!wheelPrizesLoaded) {
+    const prizesSnap = await db.ref('spinSettings/prizes').once('value');
+    wheelPrizes = prizesSnap.val() ? prizesSnap.val() : DEFAULT_PRIZES;
+    wheelPrizesLoaded = true;
+  }
 
   // Daily reset check
   const today = new Date().toDateString();
@@ -2412,11 +2416,14 @@ async function initWheel() {
 
 async function calcDailySpins() {
   const refs = currentUser.referrals ? Object.keys(currentUser.referrals) : [];
+  if (!refs.length) return 0;
+  // Read all users in ONE Firebase call instead of one per referral
+  const usersSnap = await db.ref('users').once('value');
+  const allUsersData = usersSnap.val() || {};
   let qualifying = 0;
   for (const refKey of refs) {
-    const snap = await db.ref(`users/${refKey}`).once('value');
-    const u = snap.val();
-    if (u && (u.stake || 0) >= 20000 && !u.locked) qualifying++;
+    const u = allUsersData[refKey];
+    if (u && (u.stake || 0) >= 10000 && !u.locked) qualifying++;
   }
   return getSpinsForDownlines(qualifying);
 }
